@@ -57,6 +57,30 @@ impl ControlSurface for ArpadSurface {
             self.sock
                 .send_to(msg_buf.as_slice(), self.dev_addr)
                 .unwrap();
+            unsafe {
+                for i in 0..self
+                    .reaper
+                    .get_track_num_sends(track, reaper_medium::TrackSendCategory::Send)
+                {
+                    let dest = self
+                        .reaper
+                        .get_track_send_info_desttrack(
+                            track,
+                            reaper_medium::TrackSendDirection::Send,
+                            i,
+                        )
+                        .unwrap();
+                    let (_, dest_id) = get_id_guid(&self.reaper, dest);
+                    let msg_buf = encoder::encode(&OscPacket::Message(OscMessage {
+                        addr: format!("/track/{}/send/{}", track_id, i).to_string(),
+                        args: vec![OscType::String(dest_id)],
+                    }))
+                    .unwrap();
+                    self.sock
+                        .send_to(msg_buf.as_slice(), self.dev_addr)
+                        .unwrap();
+                }
+            }
         }
     }
     fn set_surface_volume(&self, args: reaper_medium::SetSurfaceVolumeArgs) {
@@ -64,6 +88,28 @@ impl ControlSurface for ArpadSurface {
         let msg_buf = encoder::encode(&OscPacket::Message(OscMessage {
             addr: format!("/track/{}/volume", track_id).to_string(),
             args: vec![OscType::Float(args.volume.into_inner() as f32)],
+        }))
+        .unwrap();
+        self.sock
+            .send_to(msg_buf.as_slice(), self.dev_addr)
+            .unwrap();
+    }
+    fn set_surface_pan(&self, args: reaper_medium::SetSurfacePanArgs) {
+        let (_, track_id) = get_id_guid(&self.reaper, args.track);
+        let msg_buf = encoder::encode(&OscPacket::Message(OscMessage {
+            addr: format!("/track/{}/pan", track_id).to_string(),
+            args: vec![OscType::Float(args.pan.into_inner() as f32)],
+        }))
+        .unwrap();
+        self.sock
+            .send_to(msg_buf.as_slice(), self.dev_addr)
+            .unwrap();
+    }
+    fn set_surface_mute(&self, args: reaper_medium::SetSurfaceMuteArgs) {
+        let (_, track_id) = get_id_guid(&self.reaper, args.track);
+        let msg_buf = encoder::encode(&OscPacket::Message(OscMessage {
+            addr: format!("/track/{}/mute", track_id).to_string(),
+            args: vec![OscType::Int(if args.is_mute { 1 } else { 0 })],
         }))
         .unwrap();
         self.sock
@@ -87,7 +133,6 @@ fn plugin_main(context: PluginContext) -> Result<(), Box<dyn Error>> {
 
     let mut session = reaper_medium::ReaperSession::load(context);
     let reaper = session.reaper();
-    println!("Got reaper");
     let mut arpad = ArpadSurface {
         sock,
         dev_addr,
@@ -95,9 +140,7 @@ fn plugin_main(context: PluginContext) -> Result<(), Box<dyn Error>> {
     };
     arpad.run();
     match session.plugin_register_add_csurf_inst(Box::new(arpad)) {
-        Ok(_) => {
-            println!("Loaded csurf");
-        }
+        Ok(_) => {}
         Err(_) => {
             println!("Failed to load csurf");
         }
