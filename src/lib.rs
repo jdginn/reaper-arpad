@@ -2,7 +2,7 @@ use fragile::Fragile;
 use reaper_low::PluginContext;
 use reaper_macros::reaper_extension_plugin;
 use reaper_medium::ProjectContext::CurrentProject;
-use reaper_medium::{ControlSurface, Reaper, ReaperSession, TrackAttributeKey};
+use reaper_medium::{ControlSurface, MediaTrack, Reaper, ReaperSession, TrackAttributeKey};
 use std::error::Error;
 use std::sync::OnceLock;
 
@@ -32,22 +32,37 @@ fn guid_to_string(guid: reaper_low::raw::GUID) -> String {
     )
 }
 
-fn get_track_idx(reaper: &Reaper, track: reaper_medium::MediaTrack) -> u32 {
+fn get_track_idx(reaper: &Reaper, track: MediaTrack) -> u32 {
     unsafe {
         return reaper.get_media_track_info_value(track, TrackAttributeKey::TrackNumber) as u32;
     }
 }
 
-fn get_track_guid(reaper: &Reaper, track: reaper_medium::MediaTrack) -> String {
+fn get_track_guid(reaper: &Reaper, track: MediaTrack) -> String {
     unsafe {
         let track_id = reaper.get_set_media_track_info_get_guid(track);
         return guid_to_string(track_id);
     }
 }
 
+fn get_track_by_guid(reaper: &Reaper, guid: &str) -> Option<MediaTrack> {
+    let master_track = reaper.get_master_track(CurrentProject);
+    if get_track_guid(&reaper, master_track) == guid {
+        return Some(master_track);
+    }
+    for i in 0..reaper.count_tracks(CurrentProject) {
+        let track = reaper.get_track(CurrentProject, i).unwrap();
+        if get_track_guid(&reaper, track) == guid {
+            return Some(track);
+        }
+    }
+    return None;
+}
+
 #[derive(Debug)]
 struct ArpadSurface {
     osc_sender: Sender<OscPacket>,
+    sock: UdpSocket,
     reaper: Reaper,
 }
 
@@ -113,6 +128,26 @@ impl ControlSurface for ArpadSurface {
             }))
             .unwrap();
     }
+    fn run(&mut self) {
+        let mut buf = [0u8; rosc::decoder::MTU];
+        loop {
+            match self.sock.recv_from(&mut buf) {
+                Ok((size, _addr)) => {
+                    if let Ok((_addr, packet)) = rosc::decoder::decode_udp(&buf[..size]) {
+                        handle_packet(self.reaper.clone(), packet);
+                    }
+                }
+                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    // No data available, exit loop
+                    break;
+                }
+                Err(e) => {
+                    eprintln!("OSC receive error: {:?}", e);
+                    break;
+                }
+            }
+        }
+    }
 }
 
 // Spawn the OSC sending thread
@@ -126,6 +161,53 @@ fn start_sender_thread(dev_addr: SocketAddrV4, sock: UdpSocket, osc_receiver: Re
     });
 }
 
+fn parse_osc_address(addr: &str) -> Vec<&str> {
+    addr.split('/').filter(|s| !s.is_empty()).collect()
+}
+
+fn handle_packet(reaper: Reaper, packet: OscPacket) {
+    match packet {
+        OscPacket::Message(msg) => {
+            let segments = parse_osc_address(&msg.addr);
+            match segments.as_slice() {
+                ["track", guid, "volume"] => match get_track_by_guid(&reaper, guid) {
+                    Some(track) => unsafe {
+                        reaper
+                            .set_media_track_info_value(
+                                track,
+                                TrackAttributeKey::Vol,
+                                msg.args[0].clone().float().unwrap() as f64,
+                            )
+                            .unwrap();
+                    },
+                    None => {
+                        println!("Track not found: {}", guid);
+                    }
+                },
+                ["track", guid, "pan"] => match get_track_by_guid(&reaper, guid) {
+                    Some(track) => unsafe {
+                        reaper
+                            .set_media_track_info_value(
+                                track,
+                                TrackAttributeKey::Pan,
+                                msg.args[0].clone().float().unwrap() as f64,
+                            )
+                            .unwrap();
+                    },
+                    None => {
+                        println!("Track not found: {}", guid);
+                    }
+                },
+                _ => {}
+            }
+            println!("OSC message: {:?}", msg);
+        }
+        OscPacket::Bundle(bundle) => {
+            println!("OSC bundle: {:?}", bundle);
+        }
+    }
+}
+
 const HOST_ADDR: &str = "0.0.0.0:9090";
 const DEVICE_ADDR: &str = "0.0.0.0:9091";
 
@@ -137,12 +219,14 @@ fn plugin_main(context: PluginContext) -> Result<(), Box<dyn Error>> {
     let host_addr = get_addr_from_arg(HOST_ADDR);
     let dev_addr = get_addr_from_arg(DEVICE_ADDR);
     let sock = UdpSocket::bind(host_addr).unwrap();
+    sock.set_nonblocking(true)?;
     let (osc_sender, osc_receiver) = bounded(128); // buffer size as needed
     start_sender_thread(dev_addr, sock.try_clone().unwrap(), osc_receiver);
 
     let mut session = reaper_medium::ReaperSession::load(context);
-    let reaper = session.reaper();
+    let reaper = session.reaper().clone();
     let mut arpad = ArpadSurface {
+        sock,
         osc_sender,
         reaper: reaper.clone(),
     };
