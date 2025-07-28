@@ -32,11 +32,16 @@ fn guid_to_string(guid: reaper_low::raw::GUID) -> String {
     )
 }
 
-fn get_id_guid(reaper: &Reaper, track: reaper_medium::MediaTrack) -> (f64, String) {
+fn get_track_idx(reaper: &Reaper, track: reaper_medium::MediaTrack) -> u32 {
     unsafe {
-        let track_num = reaper.get_media_track_info_value(track, TrackAttributeKey::TrackNumber);
+        return reaper.get_media_track_info_value(track, TrackAttributeKey::TrackNumber) as u32;
+    }
+}
+
+fn get_track_guid(reaper: &Reaper, track: reaper_medium::MediaTrack) -> String {
+    unsafe {
         let track_id = reaper.get_set_media_track_info_get_guid(track);
-        return (track_num, guid_to_string(track_id));
+        return guid_to_string(track_id);
     }
 }
 
@@ -50,11 +55,12 @@ impl ControlSurface for ArpadSurface {
     fn set_track_list_change(&self) {
         for i in 0..self.reaper.count_tracks(CurrentProject) {
             let track = self.reaper.get_track(CurrentProject, i).unwrap();
-            let (track_num, track_id) = get_id_guid(&self.reaper, track);
+            let track_idx = get_track_idx(&self.reaper, track);
+            let track_guid = get_track_guid(&self.reaper, track);
             self.osc_sender
                 .send(OscPacket::Message(OscMessage {
-                    addr: format!("/track/{}/index", track_id).to_string(),
-                    args: vec![OscType::Int(track_num as i32)],
+                    addr: format!("/track/{}/index", track_guid).to_string(),
+                    args: vec![OscType::Int(track_idx as i32)],
                 }))
                 .unwrap();
             unsafe {
@@ -70,11 +76,10 @@ impl ControlSurface for ArpadSurface {
                             i,
                         )
                         .unwrap();
-                    let (_, dest_id) = get_id_guid(&self.reaper, dest);
                     self.osc_sender
                         .send(OscPacket::Message(OscMessage {
-                            addr: format!("/track/{}/send/{}", track_id, i).to_string(),
-                            args: vec![OscType::String(dest_id)],
+                            addr: format!("/track/{}/send/{}", track_guid, i).to_string(),
+                            args: vec![OscType::String(get_track_guid(&self.reaper, dest))],
                         }))
                         .unwrap();
                 }
@@ -82,36 +87,32 @@ impl ControlSurface for ArpadSurface {
         }
     }
     fn set_surface_volume(&self, args: reaper_medium::SetSurfaceVolumeArgs) {
-        let (_, track_id) = get_id_guid(&self.reaper, args.track);
+        let track_guid = get_track_guid(&self.reaper, args.track);
         self.osc_sender
             .send(OscPacket::Message(OscMessage {
-                addr: format!("/track/{}/volume", track_id).to_string(),
+                addr: format!("/track/{}/volume", track_guid).to_string(),
                 args: vec![OscType::Float(args.volume.into_inner() as f32)],
             }))
             .unwrap();
     }
     fn set_surface_pan(&self, args: reaper_medium::SetSurfacePanArgs) {
-        let (_, track_id) = get_id_guid(&self.reaper, args.track);
+        let track_guid = get_track_guid(&self.reaper, args.track);
         self.osc_sender
             .send(OscPacket::Message(OscMessage {
-                addr: format!("/track/{}/pan", track_id).to_string(),
+                addr: format!("/track/{}/pan", track_guid).to_string(),
                 args: vec![OscType::Float(args.pan.into_inner() as f32)],
             }))
             .unwrap();
     }
     fn set_surface_mute(&self, args: reaper_medium::SetSurfaceMuteArgs) {
-        let (_, track_id) = get_id_guid(&self.reaper, args.track);
+        let track_guid = get_track_guid(&self.reaper, args.track);
         self.osc_sender
             .send(OscPacket::Message(OscMessage {
-                addr: format!("/track/{}/mute", track_id).to_string(),
+                addr: format!("/track/{}/mute", track_guid).to_string(),
                 args: vec![OscType::Int(if args.is_mute { 1 } else { 0 })],
             }))
             .unwrap();
     }
-}
-
-fn get_addr_from_arg(arg: &str) -> SocketAddrV4 {
-    SocketAddrV4::from_str(arg).unwrap()
 }
 
 // Spawn the OSC sending thread
@@ -130,6 +131,9 @@ const DEVICE_ADDR: &str = "0.0.0.0:9091";
 
 #[reaper_extension_plugin]
 fn plugin_main(context: PluginContext) -> Result<(), Box<dyn Error>> {
+    fn get_addr_from_arg(arg: &str) -> SocketAddrV4 {
+        SocketAddrV4::from_str(arg).unwrap()
+    }
     let host_addr = get_addr_from_arg(HOST_ADDR);
     let dev_addr = get_addr_from_arg(DEVICE_ADDR);
     let sock = UdpSocket::bind(host_addr).unwrap();
