@@ -14,5 +14,9 @@ rosc = "~0.10"
 crossbeam-channel = "0.5.15"
 
 [lib]
-name = "reaspill"
+name = "arpad"
 crate-type = ["cdylib"]
+
+
+[workspace]
+members = ["tools/oscdoc"]

@@ -101,6 +101,7 @@ impl ControlSurface for ArpadSurface {
             }
         }
     }
+    /// @osc-doc
     /// OSC Address: /track/{track_guid}/volume
     /// Arguments:
     /// - track_guid (string): unique identifier for the track
@@ -114,6 +115,7 @@ impl ControlSurface for ArpadSurface {
             }))
             .unwrap();
     }
+    /// @osc-doc
     /// OSC Address: /track/{track_guid}/pan
     /// Arguments:
     /// - track_guid (string): unique identifier for the track
@@ -127,6 +129,7 @@ impl ControlSurface for ArpadSurface {
             }))
             .unwrap();
     }
+    /// @osc-doc
     /// OSC Address: /track/{track_guid}/mute
     /// Arguments:
     /// - track_guid (string): unique identifier for the track
