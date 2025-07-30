@@ -101,6 +101,10 @@ impl ControlSurface for ArpadSurface {
             }
         }
     }
+    /// OSC Address: /track/{track_guid}/volume
+    /// Arguments:
+    /// - track_guid (string): unique identifier for the track
+    /// - volume (float): volume of the track, normalized to 0 to 1.0
     fn set_surface_volume(&self, args: reaper_medium::SetSurfaceVolumeArgs) {
         let track_guid = get_track_guid(&self.reaper, args.track);
         self.osc_sender
@@ -110,6 +114,10 @@ impl ControlSurface for ArpadSurface {
             }))
             .unwrap();
     }
+    /// OSC Address: /track/{track_guid}/pan
+    /// Arguments:
+    /// - track_guid (string): unique identifier for the track
+    /// - pan (float): pan of the track, normalized to -1.0 to 1.0
     fn set_surface_pan(&self, args: reaper_medium::SetSurfacePanArgs) {
         let track_guid = get_track_guid(&self.reaper, args.track);
         self.osc_sender
@@ -119,6 +127,10 @@ impl ControlSurface for ArpadSurface {
             }))
             .unwrap();
     }
+    /// OSC Address: /track/{track_guid}/mute
+    /// Arguments:
+    /// - track_guid (string): unique identifier for the track
+    /// - mute (int): 0 to mute, 1 to unmute
     fn set_surface_mute(&self, args: reaper_medium::SetSurfaceMuteArgs) {
         let track_guid = get_track_guid(&self.reaper, args.track);
         self.osc_sender
