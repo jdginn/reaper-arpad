@@ -16,6 +16,9 @@ use rosc::{OscMessage, OscPacket, OscType};
 use crossbeam_channel::{bounded, Receiver, Sender};
 use std::thread;
 
+mod osc_routes;
+use osc_routes::*;
+
 fn guid_to_string(guid: reaper_low::raw::GUID) -> String {
     format!(
         "{:08x}-{:04x}-{:04x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
@@ -142,201 +145,6 @@ fn dispatch_route<T: OscRoute>(
     }
 }
 
-/// @osc-doc
-/// OSC Address: /track/{track_guid}/volume
-/// Arguments:
-/// - track_guid (string): unique identifier for the track
-/// - volume (float): volume of the track, normalized to 0 to 1.0
-struct TrackVolumeRoute;
-
-struct TrackVolumeParams {
-    track_guid: String,
-}
-
-impl OscRoute for TrackVolumeRoute {
-    type SendParams = reaper_medium::SetSurfaceVolumeArgs;
-    type ReceiveParams = TrackVolumeParams;
-
-    fn matcher(segments: &[&str]) -> Option<Self::ReceiveParams> {
-        match segments {
-            ["track", track_guid, "volume"] => Some(TrackVolumeParams {
-                track_guid: track_guid.to_string(),
-            }),
-            _ => {
-                return None;
-            }
-        }
-    }
-
-    fn receive(
-        params: Self::ReceiveParams,
-        msg: &OscMessage,
-        reaper: &Reaper,
-    ) -> Result<(), ReceiverError> {
-        let track = get_track_by_guid(&reaper, &params.track_guid)?;
-        unsafe {
-            reaper.set_media_track_info_value(
-                track,
-                TrackAttributeKey::Vol,
-                msg.args[0].clone().float().unwrap() as f64,
-            )?;
-            Ok(())
-        }
-    }
-
-    fn build_message(args: Self::SendParams, reaper: &Reaper) -> OscMessage {
-        let track_guid = get_track_guid(reaper, args.track);
-        return OscMessage {
-            addr: format!("/track/{}/volume", track_guid).to_string(),
-            args: vec![OscType::Float(args.volume.into_inner() as f32)],
-        };
-    }
-
-    fn collect_send_params(
-        params: &Self::ReceiveParams,
-        reaper: &Reaper,
-    ) -> Result<Self::SendParams, RouteError> {
-        let track = get_track_by_guid(&reaper, &params.track_guid)?;
-        unsafe {
-            let volume = reaper.get_media_track_info_value(track, TrackAttributeKey::Vol);
-            return Ok(reaper_medium::SetSurfaceVolumeArgs {
-                track,
-                volume: reaper_medium::ReaperVolumeValue::new_panic(volume),
-            });
-        }
-    }
-}
-
-/// @osc-doc
-/// OSC Address: /track/{track_guid}/pan
-/// Arguments:
-/// - track_guid (string): unique identifier for the track
-/// - pan (float): pan of the track, normalized to -1.0 to 1.0
-struct TrackPanRoute;
-
-struct TrackPanParams {
-    track_guid: String,
-}
-
-impl OscRoute for TrackPanRoute {
-    type SendParams = reaper_medium::SetSurfacePanArgs;
-    type ReceiveParams = TrackPanParams;
-
-    fn matcher(segments: &[&str]) -> Option<Self::ReceiveParams> {
-        match segments {
-            ["track", track_guid, "pan"] => Some(TrackPanParams {
-                track_guid: track_guid.to_string(),
-            }),
-            _ => {
-                return None;
-            }
-        }
-    }
-
-    fn receive(
-        params: Self::ReceiveParams,
-        msg: &OscMessage,
-        reaper: &Reaper,
-    ) -> Result<(), ReceiverError> {
-        let track = get_track_by_guid(&reaper, &params.track_guid)?;
-        unsafe {
-            reaper.set_media_track_info_value(
-                track,
-                TrackAttributeKey::Pan,
-                msg.args[0].clone().float().unwrap() as f64,
-            )?;
-        }
-        Ok(())
-    }
-
-    fn build_message(args: Self::SendParams, reaper: &Reaper) -> OscMessage {
-        let track_guid = get_track_guid(reaper, args.track);
-        return OscMessage {
-            addr: format!("/track/{}/pan", track_guid).to_string(),
-            args: vec![OscType::Float(args.pan.into_inner() as f32)],
-        };
-    }
-
-    fn collect_send_params(
-        params: &Self::ReceiveParams,
-        reaper: &Reaper,
-    ) -> Result<Self::SendParams, RouteError> {
-        let track = get_track_by_guid(&reaper, &params.track_guid)?;
-        unsafe {
-            let pan = reaper.get_media_track_info_value(track, TrackAttributeKey::Pan);
-            Ok(reaper_medium::SetSurfacePanArgs {
-                track,
-                pan: reaper_medium::ReaperPanValue::new_panic(pan),
-            })
-        }
-    }
-}
-
-/// @osc-doc
-/// OSC Address: /track/{track_guid}/mute
-/// Arguments:
-/// - track_guid (string): unique identifier for the track
-/// - mute (int): 0 to mute, 1 to unmute
-struct TrackMuteRoute;
-
-struct TrackMuteParams {
-    track_guid: String,
-}
-
-impl OscRoute for TrackMuteRoute {
-    type SendParams = reaper_medium::SetSurfaceMuteArgs;
-    type ReceiveParams = TrackMuteParams;
-
-    fn matcher(segments: &[&str]) -> Option<Self::ReceiveParams> {
-        match segments {
-            ["track", track_guid, "mute"] => Some(TrackMuteParams {
-                track_guid: track_guid.to_string(),
-            }),
-            _ => {
-                return None;
-            }
-        }
-    }
-
-    fn receive(
-        params: Self::ReceiveParams,
-        msg: &OscMessage,
-        reaper: &Reaper,
-    ) -> Result<(), ReceiverError> {
-        let track = get_track_by_guid(&reaper, &params.track_guid)?;
-        unsafe {
-            reaper.set_media_track_info_value(
-                track,
-                TrackAttributeKey::Mute,
-                msg.args[0].clone().int().unwrap() as f64,
-            )?;
-        }
-        Ok(())
-    }
-
-    fn build_message(args: Self::SendParams, reaper: &Reaper) -> OscMessage {
-        let track_guid = get_track_guid(reaper, args.track);
-        return OscMessage {
-            addr: format!("/track/{}/mute", track_guid).to_string(),
-            args: vec![OscType::Bool(args.is_mute)],
-        };
-    }
-
-    fn collect_send_params(
-        params: &Self::ReceiveParams,
-        reaper: &Reaper,
-    ) -> Result<Self::SendParams, RouteError> {
-        let track = get_track_by_guid(&reaper, &params.track_guid)?;
-        unsafe {
-            let is_mute = reaper.get_media_track_info_value(track, TrackAttributeKey::Mute);
-            Ok(reaper_medium::SetSurfaceMuteArgs {
-                track,
-                is_mute: (is_mute != 0.0),
-            })
-        }
-    }
-}
-
 #[derive(Debug)]
 struct ArpadSurface {
     osc_sender: Sender<OscPacket>,
@@ -386,13 +194,19 @@ impl ControlSurface for ArpadSurface {
         }
     }
     fn set_surface_volume(&self, args: reaper_medium::SetSurfaceVolumeArgs) {
-        self.send(TrackVolumeRoute::build_message(args, &self.reaper));
+        self.send(osc_routes::TrackVolumeRoute::build_message(
+            args,
+            &self.reaper,
+        ));
     }
     fn set_surface_pan(&self, args: reaper_medium::SetSurfacePanArgs) {
-        self.send(TrackPanRoute::build_message(args, &self.reaper));
+        self.send(osc_routes::TrackPanRoute::build_message(args, &self.reaper));
     }
     fn set_surface_mute(&self, args: reaper_medium::SetSurfaceMuteArgs) {
-        self.send(TrackMuteRoute::build_message(args, &self.reaper));
+        self.send(osc_routes::TrackMuteRoute::build_message(
+            args,
+            &self.reaper,
+        ));
     }
     fn run(&mut self) {
         let mut buf = [0u8; rosc::decoder::MTU];
