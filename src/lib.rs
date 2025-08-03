@@ -66,6 +66,7 @@ fn get_track_by_guid(reaper: &Reaper, guid: &str) -> Result<MediaTrack, RouteErr
 #[derive(Debug)]
 pub enum RouteError {
     GuidNotFound(String),
+    ValueNotFound(String),
 }
 
 #[derive(Debug)]
@@ -90,6 +91,7 @@ impl std::fmt::Display for RouteError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             RouteError::GuidNotFound(guid) => write!(f, "GUID not found: {}", guid),
+            RouteError::ValueNotFound(value) => write!(f, "Value not found: {}", value),
             // ...other error formatting
         }
     }
