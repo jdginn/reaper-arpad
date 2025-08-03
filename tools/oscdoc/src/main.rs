@@ -19,7 +19,7 @@ struct OscArg {
 }
 
 fn main() {
-    let src = fs::read_to_string("src/lib.rs").expect("No src/lib.rs found");
+    let src = fs::read_to_string("src/osc_routes.rs").expect("No src/lib.rs found");
     let re = Regex::new(r"(?s)/// ?@osc-doc\n(.*?)(?:fn (\w+)[^\n]*\{)").unwrap();
 
     let mut docs = Vec::new();
