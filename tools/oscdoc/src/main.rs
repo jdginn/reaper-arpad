@@ -7,6 +7,8 @@ use std::fs;
 struct OscDoc {
     osc_address: String,
     arguments: Vec<OscArg>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    direction: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     comments: Vec<String>,
 }
@@ -36,7 +38,18 @@ fn main() {
 
         let mut in_osc_section = false;
 
+        let mut direction = None;
+
         for line in docblock.lines() {
+            if line.contains("@readonly") {
+                direction = Some("readonly".to_string());
+                continue;
+            }
+            if line.contains("@writeonly") {
+                direction = Some("writeonly".to_string());
+                continue;
+            }
+
             if osc_re.is_match(line) {
                 osc_address = Some(osc_re.captures(line).unwrap()[1].to_string());
                 in_osc_section = true;
@@ -59,6 +72,7 @@ fn main() {
         docs.push(OscDoc {
             osc_address: osc_address.unwrap_or_default(),
             arguments,
+            direction,
             comments: comments.into_iter().filter(|c| !c.is_empty()).collect(),
         });
     }
