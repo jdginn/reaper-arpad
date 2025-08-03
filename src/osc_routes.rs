@@ -465,3 +465,170 @@ impl OscRoute for TrackRecArmRoute {
         }
     }
 }
+
+/// @osc-doc
+/// OSC Address: /track/{track_guid}/send/{send_index}/volume
+/// Arguments:
+/// - track_guid (string): unique identifier for the track
+/// - send_index (int): index of the send on the track
+/// - volume (float): volume of the send, normalized to 0 to 1.
+
+pub struct TrackSendVolumeRoute;
+
+pub struct TrackSendVolumeParams {
+    track_guid: String,
+    send_index: i32,
+}
+
+impl OscRoute for TrackSendVolumeRoute {
+    type SendParams = reaper_medium::ExtSetSendVolumeArgs;
+    type ReceiveParams = TrackSendVolumeParams;
+
+    fn matcher(segments: &[&str]) -> Option<Self::ReceiveParams> {
+        match segments {
+            ["track", track_guid, "send", send_index, "volume"] => Some(TrackSendVolumeParams {
+                track_guid: track_guid.to_string(),
+                send_index: send_index.parse().ok()?,
+            }),
+            _ => {
+                return None;
+            }
+        }
+    }
+
+    fn receive(
+        params: Self::ReceiveParams,
+        msg: &OscMessage,
+        reaper: &Reaper,
+    ) -> Result<(), ReceiverError> {
+        let track = get_track_by_guid(&reaper, &params.track_guid)?;
+        unsafe {
+            let track_send_ref = reaper_medium::TrackSendRef::Send(
+                u32::try_from(params.send_index)
+                    .or_else(|_| Err(ReceiverError::BadValue("Invalid send index".to_string())))?,
+            );
+            let volume =
+                reaper_medium::ReaperVolumeValue::new(msg.args[0].clone().float().unwrap() as f64)
+                    .or_else(|_| {
+                        Err(ReceiverError::BadValue("Invalid volume value".to_string()))
+                    })?;
+            reaper.set_track_send_ui_vol(
+                track,
+                track_send_ref,
+                volume,
+                reaper_medium::EditMode::NormalTweak,
+            )?
+        }
+        Ok(())
+    }
+
+    fn build_message(args: Self::SendParams, reaper: &Reaper) -> OscMessage {
+        let track_guid = get_track_guid(reaper, args.track);
+        return OscMessage {
+            addr: format!("/track/{}/send/{}/volume", track_guid, args.send_index).to_string(),
+            args: vec![OscType::Float(args.volume.into_inner() as f32)],
+        };
+    }
+
+    fn collect_send_params(
+        params: &Self::ReceiveParams,
+        reaper: &Reaper,
+    ) -> Result<Self::SendParams, RouteError> {
+        let track = get_track_by_guid(&reaper, &params.track_guid)?;
+        unsafe {
+            let volume = reaper.get_track_send_info_value(
+                track,
+                reaper_medium::TrackSendCategory::Send,
+                params.send_index as u32,
+                reaper_medium::TrackSendAttributeKey::Vol,
+            );
+            Ok(reaper_medium::ExtSetSendVolumeArgs {
+                track,
+                send_index: params.send_index as u32,
+                volume: reaper_medium::ReaperVolumeValue::new_panic(volume),
+            })
+        }
+    }
+}
+
+/// @osc-doc
+/// OSC Address: /track/{track_guid}/send/{send_index}/pan
+/// Arguments:
+/// - track_guid (string): unique identifier for the track
+/// - send_index (int): index of the send on the track
+/// - pan (float): pan of the send, normalized to -1.0 to 1.0
+pub struct TrackSendPanRoute;
+
+pub struct TrackSendPanParams {
+    track_guid: String,
+    send_index: i32,
+}
+
+impl OscRoute for TrackSendPanRoute {
+    type SendParams = reaper_medium::ExtSetSendPanArgs;
+    type ReceiveParams = TrackSendPanParams;
+
+    fn matcher(segments: &[&str]) -> Option<Self::ReceiveParams> {
+        match segments {
+            ["track", track_guid, "send", send_index, "pan"] => Some(TrackSendPanParams {
+                track_guid: track_guid.to_string(),
+                send_index: send_index.parse().ok()?,
+            }),
+            _ => {
+                return None;
+            }
+        }
+    }
+
+    fn receive(
+        params: Self::ReceiveParams,
+        msg: &OscMessage,
+        reaper: &Reaper,
+    ) -> Result<(), ReceiverError> {
+        let track = get_track_by_guid(&reaper, &params.track_guid)?;
+        unsafe {
+            let track_send_ref = reaper_medium::TrackSendRef::Send(
+                u32::try_from(params.send_index)
+                    .or_else(|_| Err(ReceiverError::BadValue("Invalid send index".to_string())))?,
+            );
+            let pan =
+                reaper_medium::ReaperPanValue::new(msg.args[0].clone().float().unwrap() as f64)
+                    .or_else(|_| Err(ReceiverError::BadValue("Invalid pan value".to_string())))?;
+            reaper.set_track_send_ui_pan(
+                track,
+                track_send_ref,
+                pan,
+                reaper_medium::EditMode::NormalTweak,
+            )?
+        }
+        Ok(())
+    }
+
+    fn build_message(args: Self::SendParams, reaper: &Reaper) -> OscMessage {
+        let track_guid = get_track_guid(reaper, args.track);
+        return OscMessage {
+            addr: format!("/track/{}/send/{}/pan", track_guid, args.send_index).to_string(),
+            args: vec![OscType::Float(args.pan.into_inner() as f32)],
+        };
+    }
+
+    fn collect_send_params(
+        params: &Self::ReceiveParams,
+        reaper: &Reaper,
+    ) -> Result<Self::SendParams, RouteError> {
+        let track = get_track_by_guid(&reaper, &params.track_guid)?;
+        unsafe {
+            let pan = reaper.get_track_send_info_value(
+                track,
+                reaper_medium::TrackSendCategory::Send,
+                params.send_index as u32,
+                reaper_medium::TrackSendAttributeKey::Pan,
+            );
+            Ok(reaper_medium::ExtSetSendPanArgs {
+                track,
+                send_index: params.send_index as u32,
+                pan: reaper_medium::ReaperPanValue::new_panic(pan),
+            })
+        }
+    }
+}

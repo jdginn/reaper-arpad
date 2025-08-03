@@ -72,6 +72,7 @@ pub enum RouteError {
 #[derive(Debug)]
 pub enum ReceiverError {
     Route(RouteError),
+    BadValue(String),
     Reaper(reaper_medium::ReaperFunctionError),
 }
 
@@ -259,6 +260,8 @@ fn handle_packet(reaper: Reaper, packet: OscPacket, osc_sender: &Sender<OscPacke
             dispatch_route::<TrackMuteRoute>(&segments, &msg, &reaper, osc_sender);
             dispatch_route::<TrackSoloRoute>(&segments, &msg, &reaper, osc_sender);
             dispatch_route::<TrackRecArmRoute>(&segments, &msg, &reaper, osc_sender);
+            dispatch_route::<TrackSendVolumeRoute>(&segments, &msg, &reaper, osc_sender);
+            dispatch_route::<TrackSendPanRoute>(&segments, &msg, &reaper, osc_sender);
         }
         OscPacket::Bundle(bundle) => {
             println!("OSC bundle: {:?}", bundle);
