@@ -76,6 +76,71 @@ impl OscRoute for TrackNameRoute {
 }
 
 /// @osc-doc
+/// OSC Address: /track/{track_guid}/selected
+/// Arguments:
+/// - track_guid (string): unique identifier for the track
+/// - selected (bool): true means track is selected
+pub struct TrackSelectedRoute;
+
+pub struct TrackSelectedParams {
+    track_guid: String,
+}
+
+impl OscRoute for TrackSelectedRoute {
+    type SendParams = reaper_medium::SetSurfaceSelectedArgs;
+    type ReceiveParams = TrackSelectedParams;
+
+    fn matcher(segments: &[&str]) -> Option<Self::ReceiveParams> {
+        match segments {
+            ["track", track_guid, "selected"] => Some(TrackSelectedParams {
+                track_guid: track_guid.to_string(),
+            }),
+            _ => {
+                return None;
+            }
+        }
+    }
+
+    fn receive(
+        params: Self::ReceiveParams,
+        msg: &OscMessage,
+        reaper: &Reaper,
+    ) -> Result<(), ReceiverError> {
+        let track = get_track_by_guid(&reaper, &params.track_guid)?;
+        unsafe {
+            reaper.set_media_track_info_value(
+                track,
+                TrackAttributeKey::Selected,
+                msg.args[0].clone().int().unwrap() as f64,
+            )?;
+        }
+        Ok(())
+    }
+
+    fn build_message(args: Self::SendParams, reaper: &Reaper) -> OscMessage {
+        let track_guid = get_track_guid(reaper, args.track);
+        return OscMessage {
+            addr: format!("/track/{}/selected", track_guid).to_string(),
+            args: vec![OscType::Bool(args.is_selected)],
+        };
+    }
+
+    fn collect_send_params(
+        params: &Self::ReceiveParams,
+        reaper: &Reaper,
+    ) -> Result<Self::SendParams, RouteError> {
+        let track = get_track_by_guid(&reaper, &params.track_guid)?;
+        unsafe {
+            let is_selected = reaper.get_media_track_info_value(track, TrackAttributeKey::Selected);
+            Ok(reaper_medium::SetSurfaceSelectedArgs {
+                track,
+                is_selected: (is_selected != 0.0),
+            })
+        }
+    }
+}
+
+/// @osc-doc
 /// OSC Address: /track/{track_guid}/volume
 /// Arguments:
 /// - track_guid (string): unique identifier for the track

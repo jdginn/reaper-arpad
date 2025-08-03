@@ -252,9 +252,13 @@ fn handle_packet(reaper: Reaper, packet: OscPacket, osc_sender: &Sender<OscPacke
         OscPacket::Message(msg) => {
             println!("OSC message: {:?}", msg);
             let segments = parse_osc_address(&msg.addr);
+            dispatch_route::<TrackNameRoute>(&segments, &msg, &reaper, osc_sender);
+            dispatch_route::<TrackSelectedRoute>(&segments, &msg, &reaper, osc_sender);
             dispatch_route::<TrackVolumeRoute>(&segments, &msg, &reaper, osc_sender);
             dispatch_route::<TrackPanRoute>(&segments, &msg, &reaper, osc_sender);
             dispatch_route::<TrackMuteRoute>(&segments, &msg, &reaper, osc_sender);
+            dispatch_route::<TrackSoloRoute>(&segments, &msg, &reaper, osc_sender);
+            dispatch_route::<TrackRecArmRoute>(&segments, &msg, &reaper, osc_sender);
         }
         OscPacket::Bundle(bundle) => {
             println!("OSC bundle: {:?}", bundle);
