@@ -6,6 +6,62 @@ use reaper_medium;
 use rosc::{OscMessage, OscType};
 
 /// @osc-doc
+/// @readonly
+/// OSC Address: /track/{track_guid}/index
+/// Arguments:
+/// - track_guid (string): unique identifier for the track
+/// - index (int): index of the track in the project according to reaper's mixer view
+pub struct TrackIndexRoute;
+pub struct TrackIndexParams {
+    track_guid: String,
+}
+pub struct TrackIndexArgs {
+    track: reaper_medium::MediaTrack,
+    index: i32,
+}
+impl OscRoute for TrackIndexRoute {
+    type SendParams = TrackIndexArgs;
+    type ReceiveParams = TrackIndexParams;
+
+    fn matcher(segments: &[&str]) -> Option<Self::ReceiveParams> {
+        match segments {
+            ["track", track_guid, "index"] => Some(TrackIndexParams {
+                track_guid: track_guid.to_string(),
+            }),
+            _ => {
+                return None;
+            }
+        }
+    }
+
+    fn receive(_: Self::ReceiveParams, _: &OscMessage, _: &Reaper) -> Result<(), ReceiverError> {
+        Ok(())
+    }
+
+    fn build_message(args: Self::SendParams, reaper: &Reaper) -> OscMessage {
+        let track_guid = get_track_guid(reaper, args.track);
+        return OscMessage {
+            addr: format!("/track/{}/index", track_guid).to_string(),
+            args: vec![OscType::Int(args.index)],
+        };
+    }
+
+    fn collect_send_params(
+        params: &Self::ReceiveParams,
+        reaper: &Reaper,
+    ) -> Result<Self::SendParams, RouteError> {
+        let track = get_track_by_guid(&reaper, &params.track_guid)?;
+        unsafe {
+            let index = reaper.get_media_track_info_value(track, TrackAttributeKey::TrackNumber);
+            Ok(TrackIndexArgs {
+                track,
+                index: index as i32,
+            })
+        }
+    }
+}
+
+/// @osc-doc
 /// OSC Address: /track/{track_guid}/name
 /// Arguments:
 /// - track_guid (string): unique identifier for the track
