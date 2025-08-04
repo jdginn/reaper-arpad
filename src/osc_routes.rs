@@ -16,8 +16,8 @@ pub struct TrackIndexParams {
     track_guid: String,
 }
 pub struct TrackIndexArgs {
-    track: reaper_medium::MediaTrack,
-    index: i32,
+    pub track: reaper_medium::MediaTrack,
+    pub index: i32,
 }
 impl OscRoute for TrackIndexRoute {
     type SendParams = TrackIndexArgs;
@@ -517,6 +517,87 @@ impl OscRoute for TrackRecArmRoute {
             Ok(reaper_medium::SetSurfaceRecArmArgs {
                 track,
                 is_armed: (is_rec_arm != 0.0),
+            })
+        }
+    }
+}
+
+/// @osc-doc
+/// @readonly
+/// OSC Address: /track/{track_guid}/send/{send_index}/guid
+/// Arguments:
+/// - track_guid (string): unique identifier for the track
+/// - send_index (int): index of the send on the track
+/// - guid (string): unique identifier for the send
+pub struct TrackSendGuidRoute;
+
+pub struct TrackSendGuidParams {
+    track_guid: String,
+    send_index: i32,
+}
+
+pub struct TrackSendGuidArgs {
+    pub track: reaper_medium::MediaTrack,
+    pub send_index: i32,
+    pub send_guid: String,
+}
+
+impl OscRoute for TrackSendGuidRoute {
+    type SendParams = TrackSendGuidArgs;
+    type ReceiveParams = TrackSendGuidParams;
+
+    fn matcher(segments: &[&str]) -> Option<Self::ReceiveParams> {
+        match segments {
+            ["track", track_guid, "send", send_index, "guid"] => Some(TrackSendGuidParams {
+                track_guid: track_guid.to_string(),
+                send_index: send_index.parse().ok()?,
+            }),
+            _ => {
+                return None;
+            }
+        }
+    }
+
+    fn receive(
+        params: Self::ReceiveParams,
+        _: &OscMessage,
+        reaper: &Reaper,
+    ) -> Result<(), ReceiverError> {
+        let _ = get_track_by_guid(&reaper, &params.track_guid)?;
+        // This route is read-only, so we don't need to do anything here.
+        Ok(())
+    }
+
+    fn build_message(args: Self::SendParams, reaper: &Reaper) -> OscMessage {
+        let track_guid = get_track_guid(reaper, args.track);
+        return OscMessage {
+            addr: format!("/track/{}/send/{}/guid", track_guid, args.send_index).to_string(),
+            args: vec![OscType::String(args.send_guid)],
+        };
+    }
+
+    fn collect_send_params(
+        params: &Self::ReceiveParams,
+        reaper: &Reaper,
+    ) -> Result<Self::SendParams, RouteError> {
+        let track = get_track_by_guid(&reaper, &params.track_guid)?;
+        unsafe {
+            let send_track = reaper
+                .get_track_send_info_desttrack(
+                    track,
+                    reaper_medium::TrackSendDirection::Send,
+                    params.send_index as u32,
+                )
+                .or_else(|_| {
+                    return Err(RouteError::ValueNotFound(
+                        "Failed to retrieve send track".to_string(),
+                    ));
+                })?;
+            let send_guid = get_track_guid(reaper, send_track);
+            Ok(TrackSendGuidArgs {
+                track,
+                send_index: params.send_index as i32,
+                send_guid,
             })
         }
     }

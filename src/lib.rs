@@ -166,12 +166,14 @@ impl ControlSurface for ArpadSurface {
         for i in 0..self.reaper.count_tracks(CurrentProject) {
             let track = self.reaper.get_track(CurrentProject, i).unwrap();
             let track_idx = get_track_idx(&self.reaper, track);
-            let track_guid = get_track_guid(&self.reaper, track);
             self.osc_sender
-                .send(OscPacket::Message(OscMessage {
-                    addr: format!("/track/{}/index", track_guid).to_string(),
-                    args: vec![OscType::Int(track_idx as i32)],
-                }))
+                .send(OscPacket::Message(TrackIndexRoute::build_message(
+                    TrackIndexArgs {
+                        track,
+                        index: track_idx as i32,
+                    },
+                    &self.reaper,
+                )))
                 .unwrap();
             unsafe {
                 for i in 0..self
@@ -187,10 +189,14 @@ impl ControlSurface for ArpadSurface {
                         )
                         .unwrap();
                     self.osc_sender
-                        .send(OscPacket::Message(OscMessage {
-                            addr: format!("/track/{}/send/{}", track_guid, i).to_string(),
-                            args: vec![OscType::String(get_track_guid(&self.reaper, dest))],
-                        }))
+                        .send(OscPacket::Message(TrackSendGuidRoute::build_message(
+                            TrackSendGuidArgs {
+                                track,
+                                send_index: i as i32,
+                                send_guid: get_track_guid(&self.reaper, dest),
+                            },
+                            &self.reaper,
+                        )))
                         .unwrap();
                 }
             }
