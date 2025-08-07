@@ -70,8 +70,8 @@ pub struct TrackNameParams {
 }
 
 pub struct TrackNameArgs {
-    track: reaper_medium::MediaTrack,
-    name: String,
+    pub track: reaper_medium::MediaTrack,
+    pub name: String,
 }
 
 impl OscRoute for TrackNameRoute {

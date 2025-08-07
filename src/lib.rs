@@ -200,6 +200,15 @@ impl ControlSurface for ArpadSurface {
             }
         }
     }
+    fn set_track_title(&self, args: reaper_medium::SetTrackTitleArgs) {
+        self.send(osc_routes::TrackNameRoute::build_message(
+            TrackNameArgs {
+                track: args.track,
+                name: args.name.to_string(),
+            },
+            &self.reaper,
+        ));
+    }
     fn set_surface_volume(&self, args: reaper_medium::SetSurfaceVolumeArgs) {
         self.send(osc_routes::TrackVolumeRoute::build_message(
             args,
