@@ -19,6 +19,8 @@ use std::thread;
 mod osc_routes;
 use osc_routes::*;
 
+mod polling;
+
 fn guid_to_string(guid: reaper_low::raw::GUID) -> String {
     format!(
         "{:08x}-{:04x}-{:04x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
@@ -151,6 +153,7 @@ struct ArpadSurface {
     osc_sender: Sender<OscPacket>,
     sock: UdpSocket,
     reaper: Reaper,
+    poll_manager: polling::PollManager,
 }
 
 impl ArpadSurface {
@@ -243,6 +246,7 @@ impl ControlSurface for ArpadSurface {
                 }
             }
         }
+        self.poll_manager.poll_all(&mut &self.osc_sender);
     }
 }
 
@@ -300,10 +304,13 @@ fn plugin_main(context: PluginContext) -> Result<(), Box<dyn Error>> {
 
     let mut session = reaper_medium::ReaperSession::load(context);
     let reaper = session.reaper().clone();
+    let mut poll_manager = polling::PollManager::new();
+    //  TODO: add various polling sources here
     let mut arpad = ArpadSurface {
         sock,
         osc_sender,
         reaper: reaper.clone(),
+        poll_manager,
     };
     arpad.run();
     match session.plugin_register_add_csurf_inst(Box::new(arpad)) {
