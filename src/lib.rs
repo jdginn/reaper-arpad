@@ -11,7 +11,7 @@ use std::net::{SocketAddrV4, UdpSocket};
 use std::str::FromStr;
 
 use rosc::encoder;
-use rosc::{OscMessage, OscPacket, OscType};
+use rosc::{OscMessage, OscPacket};
 
 use crossbeam_channel::{bounded, Receiver, Sender};
 use std::thread;
@@ -268,6 +268,7 @@ fn handle_packet(reaper: Reaper, packet: OscPacket, osc_sender: &Sender<OscPacke
             dispatch_route::<TrackRecArmRoute>(&segments, &msg, &reaper, osc_sender);
             dispatch_route::<TrackSendVolumeRoute>(&segments, &msg, &reaper, osc_sender);
             dispatch_route::<TrackSendPanRoute>(&segments, &msg, &reaper, osc_sender);
+            dispatch_route::<TrackColorRoute>(&segments, &msg, &reaper, osc_sender);
         }
         OscPacket::Bundle(bundle) => {
             println!("OSC bundle: {:?}", bundle);

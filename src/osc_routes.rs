@@ -783,3 +783,79 @@ impl OscRoute for TrackSendPanRoute {
         }
     }
 }
+
+/// @osc-doc
+/// OSC Address: /track/{track_guid}/color
+/// Arguments:
+/// - track_guid (string): unique identifier for the track
+/// - color (int): color of the track, represented as an RGB integer
+
+pub struct TrackColorRoute;
+pub struct TrackColorParams {
+    track_guid: String,
+}
+pub struct TrackColorArgs {
+    track: reaper_medium::MediaTrack,
+    color: i32,
+}
+
+impl OscRoute for TrackColorRoute {
+    type SendParams = TrackColorArgs;
+    type ReceiveParams = TrackColorParams;
+
+    fn matcher(segments: &[&str]) -> Option<Self::ReceiveParams> {
+        match segments {
+            ["track", track_guid, "color"] => Some(TrackColorParams {
+                track_guid: track_guid.to_string(),
+            }),
+            _ => {
+                return None;
+            }
+        }
+    }
+
+    fn receive(
+        params: Self::ReceiveParams,
+        msg: &OscMessage,
+        reaper: &Reaper,
+    ) -> Result<(), ReceiverError> {
+        let track = get_track_by_guid(&reaper, &params.track_guid)?;
+        unsafe {
+            let int_arg = msg.args[0].clone().int().ok_or_else(|| {
+                return ReceiverError::BadValue(
+                    "Invalid color value, expected an integer".to_string(),
+                );
+            })?;
+            reaper.get_set_media_track_info_set_custom_color(
+                track,
+                reaper_medium::NativeColorValue {
+                    color: reaper_medium::NativeColor::new(int_arg),
+                    is_used: true,
+                },
+            );
+        }
+        Ok(())
+    }
+
+    fn build_message(args: Self::SendParams, reaper: &Reaper) -> OscMessage {
+        let track_guid = get_track_guid(reaper, args.track);
+        return OscMessage {
+            addr: format!("/track/{}/color", track_guid).to_string(),
+            args: vec![OscType::Int(args.color as i32)],
+        };
+    }
+
+    fn collect_send_params(
+        params: &Self::ReceiveParams,
+        reaper: &Reaper,
+    ) -> Result<Self::SendParams, RouteError> {
+        let track = get_track_by_guid(&reaper, &params.track_guid)?;
+        unsafe {
+            let color = reaper.get_set_media_track_info_get_custom_color(track);
+            Ok(TrackColorArgs {
+                track,
+                color: color.color.to_raw(),
+            })
+        }
+    }
+}
