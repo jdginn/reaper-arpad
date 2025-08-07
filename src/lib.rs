@@ -37,30 +37,28 @@ fn guid_to_string(guid: reaper_low::raw::GUID) -> String {
 }
 
 fn get_track_idx(reaper: &Reaper, track: MediaTrack) -> u32 {
-    unsafe {
-        return reaper.get_media_track_info_value(track, TrackAttributeKey::TrackNumber) as u32;
-    }
+    unsafe { reaper.get_media_track_info_value(track, TrackAttributeKey::TrackNumber) as u32 }
 }
 
 fn get_track_guid(reaper: &Reaper, track: MediaTrack) -> String {
     unsafe {
         let track_id = reaper.get_set_media_track_info_get_guid(track);
-        return guid_to_string(track_id);
+        guid_to_string(track_id)
     }
 }
 
 fn get_track_by_guid(reaper: &Reaper, guid: &str) -> Result<MediaTrack, RouteError> {
     let master_track = reaper.get_master_track(CurrentProject);
-    if get_track_guid(&reaper, master_track) == guid {
+    if get_track_guid(reaper, master_track) == guid {
         return Ok(master_track);
     }
     for i in 0..reaper.count_tracks(CurrentProject) {
         let track = reaper.get_track(CurrentProject, i).unwrap();
-        if get_track_guid(&reaper, track) == guid {
+        if get_track_guid(reaper, track) == guid {
             return Ok(track);
         }
     }
-    return Err(RouteError::GuidNotFound(guid.to_string()));
+    Err(RouteError::GuidNotFound(guid.to_string()))
 }
 
 #[derive(Debug)]
