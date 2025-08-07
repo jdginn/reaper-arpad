@@ -98,8 +98,11 @@ impl OscRoute for TrackNameRoute {
         reaper: &Reaper,
     ) -> Result<(), ReceiverError> {
         let track = get_track_by_guid(&reaper, &params.track_guid)?;
+        let name = msg.args[0].clone().string().ok_or_else(|| {
+            return ReceiverError::BadValue("Invalid track name, expected a string".to_string());
+        })?;
         unsafe {
-            reaper.get_set_media_track_info_set_name(track, msg.args[0].clone().string().unwrap());
+            reaper.get_set_media_track_info_set_name(track, name);
         }
         Ok(())
     }
@@ -228,21 +231,32 @@ impl OscRoute for TrackVolumeRoute {
         reaper: &Reaper,
     ) -> Result<(), ReceiverError> {
         let track = get_track_by_guid(&reaper, &params.track_guid)?;
+        let volume_raw = msg.args[0].clone().float().ok_or_else(|| {
+            return ReceiverError::BadValue("Invalid volume value, expected a float".to_string());
+        })?;
+        let slider_value = reaper_medium::VolumeSliderValue::new(
+            volume_raw as f64 * reaper_medium::VolumeSliderValue::TWELVE_DB.get(),
+        );
+        let volume_db = reaper.slider2db(slider_value);
+        let volume_linear = volume_db.to_linear_volume_value();
         unsafe {
-            reaper.set_media_track_info_value(
+            reaper.csurf_on_volume_change_ex(
                 track,
-                TrackAttributeKey::Vol,
-                msg.args[0].clone().float().unwrap() as f64,
-            )?;
+                reaper_medium::ValueChange::Absolute(volume_linear),
+                reaper_medium::GangBehavior::DenyGang,
+            );
             Ok(())
         }
     }
 
     fn build_message(args: Self::SendParams, reaper: &Reaper) -> OscMessage {
         let track_guid = get_track_guid(reaper, args.track);
+        let vol_db = args.volume.to_db_ex(reaper_medium::Db::MINUS_150_DB);
+        let vol_lin = reaper.db2slider(vol_db);
+        let vol_norm = vol_lin.get() / reaper_medium::VolumeSliderValue::TWELVE_DB.get();
         return OscMessage {
             addr: format!("/track/{}/volume", track_guid).to_string(),
-            args: vec![OscType::Float(args.volume.into_inner() as f32)],
+            args: vec![OscType::Float(vol_norm as f32)],
         };
     }
 
