@@ -765,8 +765,8 @@ pub struct TrackColorParams {
     track_guid: String,
 }
 pub struct TrackColorArgs {
-    track: reaper_medium::MediaTrack,
-    color: i32,
+    pub track: reaper_medium::MediaTrack,
+    pub color: i32,
 }
 
 impl OscRoute for TrackColorRoute {

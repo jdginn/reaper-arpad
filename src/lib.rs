@@ -203,11 +203,24 @@ impl ControlSurface for ArpadSurface {
             }
         }
     }
+    // This is also called when track color changes!
     fn set_track_title(&self, args: reaper_medium::SetTrackTitleArgs) {
         self.send(osc_routes::TrackNameRoute::build_message(
             TrackNameArgs {
                 track: args.track,
                 name: args.name.to_string(),
+            },
+            &self.reaper,
+        ));
+        let color = unsafe {
+            self.reaper
+                .get_set_media_track_info_get_custom_color(args.track)
+                .color
+        };
+        self.send(osc_routes::TrackColorRoute::build_message(
+            TrackColorArgs {
+                track: args.track,
+                color: color.to_raw(),
             },
             &self.reaper,
         ));
