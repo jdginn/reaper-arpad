@@ -1,17 +1,18 @@
-use fragile::Fragile;
+use std::error::Error;
+use std::net::{SocketAddrV4, UdpSocket};
+use std::str::FromStr;
+use std::sync::OnceLock;
+
 use reaper_low::PluginContext;
 use reaper_macros::reaper_extension_plugin;
 use reaper_medium::ProjectContext::CurrentProject;
-use reaper_medium::ReaperFunctionError;
-use reaper_medium::{ControlSurface, Reaper, ReaperSession, TrackAttributeKey};
-use std::error::Error;
-use std::sync::OnceLock;
+use reaper_medium::{
+    ControlSurface, Reaper, ReaperFunctionError, ReaperSession, TrackAttributeKey,
+};
 
-use std::net::{SocketAddrV4, UdpSocket};
-use std::str::FromStr;
+use fragile::Fragile;
 
-use rosc::encoder;
-use rosc::{OscMessage, OscPacket};
+use rosc::{encoder, OscMessage, OscPacket};
 
 use crossbeam_channel::{bounded, Receiver, Sender};
 use std::thread;
