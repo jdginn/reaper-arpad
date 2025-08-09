@@ -3,7 +3,7 @@ use reaper_low::PluginContext;
 use reaper_macros::reaper_extension_plugin;
 use reaper_medium::ProjectContext::CurrentProject;
 use reaper_medium::ReaperFunctionError;
-use reaper_medium::{ControlSurface, MediaTrack, Reaper, ReaperSession, TrackAttributeKey};
+use reaper_medium::{ControlSurface, Reaper, ReaperSession, TrackAttributeKey};
 use std::error::Error;
 use std::sync::OnceLock;
 
@@ -16,52 +16,14 @@ use rosc::{OscMessage, OscPacket};
 use crossbeam_channel::{bounded, Receiver, Sender};
 use std::thread;
 
+mod utils;
+use utils::{get_track_by_guid, get_track_guid, get_track_idx};
+
 mod osc_routes;
 use osc_routes::*;
 
 mod polling;
-
-fn guid_to_string(guid: reaper_low::raw::GUID) -> String {
-    format!(
-        "{:08x}-{:04x}-{:04x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
-        guid.Data1,
-        guid.Data2,
-        guid.Data3,
-        guid.Data4[0],
-        guid.Data4[1],
-        guid.Data4[2],
-        guid.Data4[3],
-        guid.Data4[4],
-        guid.Data4[5],
-        guid.Data4[6],
-        guid.Data4[7],
-    )
-}
-
-fn get_track_idx(reaper: &Reaper, track: MediaTrack) -> u32 {
-    unsafe { reaper.get_media_track_info_value(track, TrackAttributeKey::TrackNumber) as u32 }
-}
-
-fn get_track_guid(reaper: &Reaper, track: MediaTrack) -> String {
-    unsafe {
-        let track_id = reaper.get_set_media_track_info_get_guid(track);
-        guid_to_string(track_id)
-    }
-}
-
-fn get_track_by_guid(reaper: &Reaper, guid: &str) -> Result<MediaTrack, RouteError> {
-    let master_track = reaper.get_master_track(CurrentProject);
-    if get_track_guid(reaper, master_track) == guid {
-        return Ok(master_track);
-    }
-    for i in 0..reaper.count_tracks(CurrentProject) {
-        let track = reaper.get_track(CurrentProject, i).unwrap();
-        if get_track_guid(reaper, track) == guid {
-            return Ok(track);
-        }
-    }
-    Err(RouteError::GuidNotFound(guid.to_string()))
-}
+use polling::*;
 
 #[derive(Debug)]
 pub enum RouteError {
@@ -93,12 +55,11 @@ impl std::fmt::Display for RouteError {
         match self {
             RouteError::GuidNotFound(guid) => write!(f, "GUID not found: {}", guid),
             RouteError::ValueNotFound(value) => write!(f, "Value not found: {}", value),
-            // ...other error formatting
         }
     }
 }
 
-trait OscRoute {
+pub(crate) trait OscRoute {
     type SendParams;
     type ReceiveParams;
 
@@ -148,17 +109,27 @@ fn dispatch_route<T: OscRoute>(
     }
 }
 
-#[derive(Debug)]
 struct ArpadSurface {
     osc_sender: Sender<OscPacket>,
     sock: UdpSocket,
     reaper: Reaper,
-    poll_manager: polling::PollManager,
+    poll_manager: PollManager,
 }
 
 impl ArpadSurface {
     fn send(&self, msg: OscMessage) {
         self.osc_sender.send(OscPacket::Message(msg)).unwrap();
+    }
+}
+
+impl std::fmt::Debug for ArpadSurface {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.debug_struct("ArpadSurface")
+            .field("osc_sender", &"...")
+            .field("sock", &"...")
+            .field("reaper", &"...")
+            .field("poll_manager", &"[PollManager omitted]")
+            .finish()
     }
 }
 
@@ -241,6 +212,7 @@ impl ControlSurface for ArpadSurface {
         ));
     }
     fn run(&mut self) {
+        self.poll_manager.poll_all(&self.osc_sender);
         let mut buf = [0u8; rosc::decoder::MTU];
         loop {
             match self.sock.recv_from(&mut buf) {
@@ -259,7 +231,6 @@ impl ControlSurface for ArpadSurface {
                 }
             }
         }
-        self.poll_manager.poll_all(&mut &self.osc_sender);
     }
 }
 
@@ -317,7 +288,8 @@ fn plugin_main(context: PluginContext) -> Result<(), Box<dyn Error>> {
 
     let mut session = reaper_medium::ReaperSession::load(context);
     let reaper = session.reaper().clone();
-    let mut poll_manager = polling::PollManager::new();
+    let mut poll_manager = PollManager::new();
+    // poll_manager.add_source(Box::new(TrackColorPollSource::new(reaper.clone())));
     //  TODO: add various polling sources here
     let mut arpad = ArpadSurface {
         sock,
