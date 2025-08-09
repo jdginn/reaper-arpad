@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+use std::collections::HashSet;
 use std::error::Error;
 use std::net::{SocketAddrV4, UdpSocket};
 use std::str::FromStr;
@@ -115,6 +117,7 @@ struct ArpadSurface {
     sock: UdpSocket,
     reaper: Reaper,
     poll_manager: PollManager,
+    known_guids: RefCell<HashSet<String>>,
 }
 
 impl ArpadSurface {
@@ -136,8 +139,11 @@ impl std::fmt::Debug for ArpadSurface {
 
 impl ControlSurface for ArpadSurface {
     fn set_track_list_change(&self) {
+        let mut temp_guids = HashSet::new();
         for i in 0..self.reaper.count_tracks(CurrentProject) {
             let track = self.reaper.get_track(CurrentProject, i).unwrap();
+            let guid = get_track_guid(&self.reaper, track);
+            temp_guids.insert(guid.clone());
             let track_idx = get_track_idx(&self.reaper, track);
             self.osc_sender
                 .send(OscPacket::Message(TrackIndexRoute::build_message(
@@ -174,6 +180,19 @@ impl ControlSurface for ArpadSurface {
                 }
             }
         }
+        let mut known_guids = self.known_guids.borrow_mut();
+        for guid in known_guids.difference(&temp_guids) {
+            self.osc_sender
+                .send(OscPacket::Message(TrackDeleteRoute::build_message(
+                    TrackDeleteArgs {
+                        track_guid: guid.clone(),
+                    },
+                    &self.reaper,
+                )))
+                .unwrap();
+        }
+        known_guids.clear();
+        known_guids.extend(temp_guids.iter().cloned());
     }
     // This is also called when track color changes!
     fn set_track_title(&self, args: reaper_medium::SetTrackTitleArgs) {
@@ -297,6 +316,7 @@ fn plugin_main(context: PluginContext) -> Result<(), Box<dyn Error>> {
         osc_sender,
         reaper: reaper.clone(),
         poll_manager,
+        known_guids: RefCell::new(HashSet::new()),
     };
     arpad.run();
     match session.plugin_register_add_csurf_inst(Box::new(arpad)) {

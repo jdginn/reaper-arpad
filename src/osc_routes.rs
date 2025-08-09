@@ -61,6 +61,60 @@ impl OscRoute for TrackIndexRoute {
 }
 
 /// @osc-doc
+/// @writeable
+/// OSC Address: /track/{track_guid}/delete
+/// - params:
+///   - track_guid (string): unique identifier for the track
+pub struct TrackDeleteRoute;
+pub struct TrackDeleteParams {
+    track_guid: String,
+}
+pub struct TrackDeleteArgs {
+    pub track_guid: String,
+}
+impl OscRoute for TrackDeleteRoute {
+    type SendParams = TrackDeleteArgs;
+    type ReceiveParams = TrackDeleteParams;
+
+    fn matcher(segments: &[&str]) -> Option<Self::ReceiveParams> {
+        match segments {
+            ["track", track_guid, "delete"] => Some(TrackDeleteParams {
+                track_guid: track_guid.to_string(),
+            }),
+            _ => None,
+        }
+    }
+
+    fn receive(
+        params: Self::ReceiveParams,
+        _: &OscMessage,
+        reaper: &Reaper,
+    ) -> Result<(), ReceiverError> {
+        let track = get_track_by_guid(reaper, &params.track_guid)?;
+        unsafe {
+            reaper.delete_track(track);
+        }
+        Ok(())
+    }
+
+    fn build_message(args: Self::SendParams, _: &Reaper) -> OscMessage {
+        OscMessage {
+            addr: format!("/track/{}/delete", args.track_guid).to_string(),
+            args: vec![],
+        }
+    }
+
+    fn collect_send_params(
+        params: &Self::ReceiveParams,
+        _: &Reaper,
+    ) -> Result<Self::SendParams, RouteError> {
+        Ok(TrackDeleteArgs {
+            track_guid: params.track_guid.clone(),
+        })
+    }
+}
+
+/// @osc-doc
 /// @readable
 /// @writeable
 /// @queryable
