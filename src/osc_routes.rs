@@ -155,16 +155,12 @@ impl OscRoute for TrackSelectedRoute {
 
     fn receive(
         params: Self::ReceiveParams,
-        msg: &OscMessage,
+        _: &OscMessage,
         reaper: &Reaper,
     ) -> Result<(), ReceiverError> {
         let track = get_track_by_guid(reaper, &params.track_guid)?;
         unsafe {
-            reaper.set_media_track_info_value(
-                track,
-                TrackAttributeKey::Selected,
-                msg.args[0].clone().int().unwrap() as f64,
-            )?;
+            reaper.set_only_track_selected(Some(track));
         }
         Ok(())
     }
@@ -360,11 +356,11 @@ impl OscRoute for TrackMuteRoute {
     ) -> Result<(), ReceiverError> {
         let track = get_track_by_guid(reaper, &params.track_guid)?;
         unsafe {
-            reaper.set_media_track_info_value(
+            reaper.csurf_on_mute_change_ex(
                 track,
-                TrackAttributeKey::Mute,
-                msg.args[0].clone().int().unwrap() as f64,
-            )?;
+                msg.args[0].clone().bool().unwrap(),
+                reaper_medium::GangBehavior::DenyGang,
+            );
         }
         Ok(())
     }
@@ -423,11 +419,11 @@ impl OscRoute for TrackSoloRoute {
     ) -> Result<(), ReceiverError> {
         let track = get_track_by_guid(reaper, &params.track_guid)?;
         unsafe {
-            reaper.set_media_track_info_value(
+            reaper.csurf_on_solo_change_ex(
                 track,
-                TrackAttributeKey::Solo,
-                msg.args[0].clone().int().unwrap() as f64,
-            )?;
+                msg.args[0].clone().bool().unwrap(),
+                reaper_medium::GangBehavior::DenyGang,
+            );
         }
         Ok(())
     }
@@ -486,11 +482,12 @@ impl OscRoute for TrackRecArmRoute {
     ) -> Result<(), ReceiverError> {
         let track = get_track_by_guid(reaper, &params.track_guid)?;
         unsafe {
-            reaper.set_media_track_info_value(
-                track,
-                TrackAttributeKey::RecArm,
-                msg.args[0].clone().int().unwrap() as f64,
-            )?;
+            let mode = if msg.args[0].clone().bool().unwrap() {
+                reaper_medium::RecordArmMode::Armed
+            } else {
+                reaper_medium::RecordArmMode::Unarmed
+            };
+            reaper.csurf_on_rec_arm_change_ex(track, mode, reaper_medium::GangBehavior::DenyGang);
         }
         Ok(())
     }
