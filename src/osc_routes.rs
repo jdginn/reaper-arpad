@@ -7,6 +7,103 @@ use rosc::{OscMessage, OscType};
 /// @osc-doc
 /// @readable
 /// @queryable
+/// OSC Address: /num_tracks
+/// - args:
+///   - num_tracks (int): number of tracks in the current project
+pub struct NumTracksRoute;
+pub struct NumTracksParams {}
+pub struct NumTracksArgs {
+    pub num_tracks: i32,
+}
+impl OscRoute for NumTracksRoute {
+    type SendParams = NumTracksArgs;
+    type ReceiveParams = NumTracksParams;
+
+    fn matcher(segments: &[&str]) -> Option<Self::ReceiveParams> {
+        match segments {
+            ["num_tracks"] => Some(NumTracksParams {}),
+            _ => None,
+        }
+    }
+
+    fn receive(_: Self::ReceiveParams, _: &OscMessage, _: &Reaper) -> Result<(), ReceiverError> {
+        Ok(())
+    }
+
+    fn build_message(args: Self::SendParams, _: &Reaper) -> OscMessage {
+        OscMessage {
+            addr: "/num_tracks".to_string(),
+            args: vec![OscType::Int(args.num_tracks)],
+        }
+    }
+
+    fn collect_send_params(
+        _: &Self::ReceiveParams,
+        reaper: &Reaper,
+    ) -> Result<Self::SendParams, RouteError> {
+        let num_tracks = reaper.count_tracks(reaper_medium::ProjectContext::CurrentProject) as i32;
+        Ok(NumTracksArgs { num_tracks })
+    }
+}
+
+/// @osc-doc
+/// @readable
+/// @queryable
+/// OSC Address: /track/all_guids
+/// - args:
+///   - guids (array of string): array of unique identifiers for all tracks in the project
+pub struct TrackAllGuidsRoute;
+pub struct TrackAllGuidsParams {}
+pub struct TrackAllGuidsArgs {
+    pub guids: Vec<String>,
+}
+impl OscRoute for TrackAllGuidsRoute {
+    type SendParams = TrackAllGuidsArgs;
+    type ReceiveParams = TrackAllGuidsParams;
+
+    fn matcher(segments: &[&str]) -> Option<Self::ReceiveParams> {
+        match segments {
+            ["track", "all_guids"] => Some(TrackAllGuidsParams {}),
+            _ => None,
+        }
+    }
+
+    fn receive(_: Self::ReceiveParams, _: &OscMessage, _: &Reaper) -> Result<(), ReceiverError> {
+        Ok(())
+    }
+
+    fn build_message(args: Self::SendParams, _: &Reaper) -> OscMessage {
+        let osc_args = args
+            .guids
+            .into_iter()
+            .map(OscType::String)
+            .collect::<Vec<OscType>>();
+        OscMessage {
+            addr: "/track/all_guids".to_string(),
+            args: osc_args,
+        }
+    }
+
+    fn collect_send_params(
+        _: &Self::ReceiveParams,
+        reaper: &Reaper,
+    ) -> Result<Self::SendParams, RouteError> {
+        let mut guids = Vec::new();
+        let num_tracks = reaper.count_tracks(reaper_medium::ProjectContext::CurrentProject);
+        for i in 0..num_tracks {
+            let track = reaper
+                .get_track(reaper_medium::ProjectContext::CurrentProject, i)
+                .unwrap();
+            let track_guid = get_track_guid(reaper, track);
+            guids.push(track_guid);
+        }
+        Ok(TrackAllGuidsArgs { guids })
+    }
+}
+
+/// @osc-doc
+/// @readable
+/// @queryable
 /// OSC Address: /track/{track_guid}/index
 /// - params:
 ///   - track_guid (string): unique identifier for the track
