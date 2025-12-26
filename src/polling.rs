@@ -82,28 +82,24 @@ impl PollSource for TrackColorPollSource {
                 if *prev_color != color {
                     self.prev_colors.insert(guid.clone(), color);
                     osc_sender
-                        .send(OscPacket::Message(
-                            osc_routes::TrackColorRoute::build_message(
-                                osc_routes::TrackColorArgs {
-                                    track,
-                                    color: color.to_raw(),
-                                },
-                                &self.reaper,
-                            ),
+                        .send(osc_routes::TrackColorRoute::build_packet(
+                            osc_routes::TrackColorArgs {
+                                track,
+                                color: color.to_raw(),
+                            },
+                            &self.reaper,
                         ))
                         .map_err(PollError::Send)?;
                 }
             } else {
                 self.prev_colors.insert(guid.clone(), color);
                 osc_sender
-                    .send(OscPacket::Message(
-                        osc_routes::TrackColorRoute::build_message(
-                            osc_routes::TrackColorArgs {
-                                track,
-                                color: color.to_raw(),
-                            },
-                            &self.reaper,
-                        ),
+                    .send(osc_routes::TrackColorRoute::build_packet(
+                        osc_routes::TrackColorArgs {
+                            track,
+                            color: color.to_raw(),
+                        },
+                        &self.reaper,
                     ))
                     .map_err(PollError::Send)?;
             }

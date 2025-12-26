@@ -72,7 +72,7 @@ pub(crate) trait OscRoute {
         msg: &OscMessage,
         reaper: &Reaper,
     ) -> Result<(), ReceiverError>;
-    fn build_message(params: Self::SendParams, reaper: &Reaper) -> OscMessage;
+    fn build_packet(params: Self::SendParams, reaper: &Reaper) -> OscPacket;
     /// Given receive params and reaper, build the corresponding SendParams for query
     fn collect_send_params(
         params: &Self::ReceiveParams,
@@ -97,8 +97,8 @@ fn dispatch_route<T: OscRoute>(
         if is_query {
             match T::collect_send_params(&params, reaper) {
                 Ok(send_params) => {
-                    let response_msg = T::build_message(send_params, reaper);
-                    osc_sender.send(OscPacket::Message(response_msg)).unwrap();
+                    let response_packet = T::build_packet(send_params, reaper);
+                    osc_sender.send(response_packet).unwrap();
                 }
                 Err(e) => {
                     eprintln!("Query failed: {:?}", e);
@@ -118,12 +118,6 @@ struct ArpadSurface {
     reaper: Reaper,
     poll_manager: PollManager,
     known_guids: RefCell<HashSet<String>>,
-}
-
-impl ArpadSurface {
-    fn send(&self, msg: OscMessage) {
-        self.osc_sender.send(OscPacket::Message(msg)).unwrap();
-    }
 }
 
 impl std::fmt::Debug for ArpadSurface {
@@ -146,13 +140,13 @@ impl ControlSurface for ArpadSurface {
             temp_guids.insert(guid.clone());
             let track_idx = get_track_idx(&self.reaper, track);
             self.osc_sender
-                .send(OscPacket::Message(TrackIndexRoute::build_message(
+                .send(TrackIndexRoute::build_packet(
                     TrackIndexArgs {
                         track,
                         index: track_idx as i32,
                     },
                     &self.reaper,
-                )))
+                ))
                 .unwrap();
             unsafe {
                 for i in 0..self
@@ -168,14 +162,14 @@ impl ControlSurface for ArpadSurface {
                         )
                         .unwrap();
                     self.osc_sender
-                        .send(OscPacket::Message(TrackSendGuidRoute::build_message(
+                        .send(TrackSendGuidRoute::build_packet(
                             TrackSendGuidArgs {
                                 track,
                                 send_index: i as i32,
                                 send_guid: get_track_guid(&self.reaper, dest),
                             },
                             &self.reaper,
-                        )))
+                        ))
                         .unwrap();
                 }
             }
@@ -183,12 +177,12 @@ impl ControlSurface for ArpadSurface {
         let mut known_guids = self.known_guids.borrow_mut();
         for guid in known_guids.difference(&temp_guids) {
             self.osc_sender
-                .send(OscPacket::Message(TrackDeleteRoute::build_message(
+                .send(TrackDeleteRoute::build_packet(
                     TrackDeleteArgs {
                         track_guid: guid.clone(),
                     },
                     &self.reaper,
-                )))
+                ))
                 .unwrap();
         }
         known_guids.clear();
@@ -196,40 +190,42 @@ impl ControlSurface for ArpadSurface {
     }
     // This is also called when track color changes!
     fn set_track_title(&self, args: reaper_medium::SetTrackTitleArgs) {
-        self.send(osc_routes::TrackNameRoute::build_message(
-            TrackNameArgs {
-                track: args.track,
-                name: args.name.to_string(),
-            },
-            &self.reaper,
-        ));
+        self.osc_sender
+            .send(osc_routes::TrackNameRoute::build_packet(
+                TrackNameArgs {
+                    track: args.track,
+                    name: args.name.to_string(),
+                },
+                &self.reaper,
+            ));
         let color = unsafe {
             self.reaper
                 .get_set_media_track_info_get_custom_color(args.track)
                 .color
         };
-        self.send(osc_routes::TrackColorRoute::build_message(
-            TrackColorArgs {
-                track: args.track,
-                color: color.to_raw(),
-            },
-            &self.reaper,
-        ));
+        self.osc_sender
+            .send(osc_routes::TrackColorRoute::build_packet(
+                TrackColorArgs {
+                    track: args.track,
+                    color: color.to_raw(),
+                },
+                &self.reaper,
+            ));
     }
     fn set_surface_volume(&self, args: reaper_medium::SetSurfaceVolumeArgs) {
-        self.send(osc_routes::TrackVolumeRoute::build_message(
-            args,
-            &self.reaper,
-        ));
+        self.osc_sender
+            .send(osc_routes::TrackVolumeRoute::build_packet(
+                args,
+                &self.reaper,
+            ));
     }
     fn set_surface_pan(&self, args: reaper_medium::SetSurfacePanArgs) {
-        self.send(osc_routes::TrackPanRoute::build_message(args, &self.reaper));
+        self.osc_sender
+            .send(osc_routes::TrackPanRoute::build_packet(args, &self.reaper));
     }
     fn set_surface_mute(&self, args: reaper_medium::SetSurfaceMuteArgs) {
-        self.send(osc_routes::TrackMuteRoute::build_message(
-            args,
-            &self.reaper,
-        ));
+        self.osc_sender
+            .send(osc_routes::TrackMuteRoute::build_packet(args, &self.reaper));
     }
     fn run(&mut self) {
         self.poll_manager.poll_all(&self.osc_sender);

@@ -2,7 +2,7 @@ use crate::{
     get_track_by_guid, get_track_guid, OscRoute, Reaper, ReceiverError, RouteError,
     TrackAttributeKey,
 };
-use rosc::{OscMessage, OscType};
+use rosc::{OscMessage, OscPacket, OscType};
 
 /// @osc-doc
 /// @readable
@@ -30,11 +30,11 @@ impl OscRoute for NumTracksRoute {
         Ok(())
     }
 
-    fn build_message(args: Self::SendParams, _: &Reaper) -> OscMessage {
-        OscMessage {
+    fn build_packet(args: Self::SendParams, _: &Reaper) -> OscPacket {
+        OscPacket::Message(OscMessage {
             addr: "/num_tracks".to_string(),
             args: vec![OscType::Int(args.num_tracks)],
-        }
+        })
     }
 
     fn collect_send_params(
@@ -72,16 +72,16 @@ impl OscRoute for TrackAllGuidsRoute {
         Ok(())
     }
 
-    fn build_message(args: Self::SendParams, _: &Reaper) -> OscMessage {
+    fn build_packet(args: Self::SendParams, _: &Reaper) -> OscPacket {
         let osc_args = args
             .guids
             .into_iter()
             .map(OscType::String)
             .collect::<Vec<OscType>>();
-        OscMessage {
+        OscPacket::Message(OscMessage {
             addr: "/track/all_guids".to_string(),
             args: osc_args,
-        }
+        })
     }
 
     fn collect_send_params(
@@ -134,12 +134,12 @@ impl OscRoute for TrackIndexRoute {
         Ok(())
     }
 
-    fn build_message(args: Self::SendParams, reaper: &Reaper) -> OscMessage {
+    fn build_packet(args: Self::SendParams, reaper: &Reaper) -> OscPacket {
         let track_guid = get_track_guid(reaper, args.track);
-        OscMessage {
+        OscPacket::Message(OscMessage {
             addr: format!("/track/{}/index", track_guid).to_string(),
             args: vec![OscType::Int(args.index)],
-        }
+        })
     }
 
     fn collect_send_params(
@@ -194,11 +194,11 @@ impl OscRoute for TrackDeleteRoute {
         Ok(())
     }
 
-    fn build_message(args: Self::SendParams, _: &Reaper) -> OscMessage {
-        OscMessage {
+    fn build_packet(args: Self::SendParams, _: &Reaper) -> OscPacket {
+        OscPacket::Message(OscMessage {
             addr: format!("/track/{}/delete", args.track_guid).to_string(),
             args: vec![],
-        }
+        })
     }
 
     fn collect_send_params(
@@ -259,12 +259,12 @@ impl OscRoute for TrackNameRoute {
         Ok(())
     }
 
-    fn build_message(args: Self::SendParams, reaper: &Reaper) -> OscMessage {
+    fn build_packet(args: Self::SendParams, reaper: &Reaper) -> OscPacket {
         let track_guid = get_track_guid(reaper, args.track);
-        OscMessage {
+        OscPacket::Message(OscMessage {
             addr: format!("/track/{}/name", track_guid).to_string(),
             args: vec![OscType::String(args.name)],
-        }
+        })
     }
 
     fn collect_send_params(
@@ -326,12 +326,12 @@ impl OscRoute for TrackSelectedRoute {
         Ok(())
     }
 
-    fn build_message(args: Self::SendParams, reaper: &Reaper) -> OscMessage {
+    fn build_packet(args: Self::SendParams, reaper: &Reaper) -> OscPacket {
         let track_guid = get_track_guid(reaper, args.track);
-        OscMessage {
+        OscPacket::Message(OscMessage {
             addr: format!("/track/{}/selected", track_guid).to_string(),
             args: vec![OscType::Bool(args.is_selected)],
-        }
+        })
     }
 
     fn collect_send_params(
@@ -401,15 +401,15 @@ impl OscRoute for TrackVolumeRoute {
         }
     }
 
-    fn build_message(args: Self::SendParams, reaper: &Reaper) -> OscMessage {
+    fn build_packet(args: Self::SendParams, reaper: &Reaper) -> OscPacket {
         let track_guid = get_track_guid(reaper, args.track);
         let vol_db = args.volume.to_db_ex(reaper_medium::Db::MINUS_150_DB);
         let vol_lin = reaper.db2slider(vol_db);
         let vol_norm = vol_lin.get() / reaper_medium::VolumeSliderValue::TWELVE_DB.get();
-        OscMessage {
+        OscPacket::Message(OscMessage {
             addr: format!("/track/{}/volume", track_guid).to_string(),
             args: vec![OscType::Float(vol_norm as f32)],
-        }
+        })
     }
 
     fn collect_send_params(
@@ -471,12 +471,12 @@ impl OscRoute for TrackPanRoute {
         Ok(())
     }
 
-    fn build_message(args: Self::SendParams, reaper: &Reaper) -> OscMessage {
+    fn build_packet(args: Self::SendParams, reaper: &Reaper) -> OscPacket {
         let track_guid = get_track_guid(reaper, args.track);
-        OscMessage {
+        OscPacket::Message(OscMessage {
             addr: format!("/track/{}/pan", track_guid).to_string(),
             args: vec![OscType::Float(args.pan.into_inner() as f32)],
-        }
+        })
     }
 
     fn collect_send_params(
@@ -538,12 +538,12 @@ impl OscRoute for TrackMuteRoute {
         Ok(())
     }
 
-    fn build_message(args: Self::SendParams, reaper: &Reaper) -> OscMessage {
+    fn build_packet(args: Self::SendParams, reaper: &Reaper) -> OscPacket {
         let track_guid = get_track_guid(reaper, args.track);
-        OscMessage {
+        OscPacket::Message(OscMessage {
             addr: format!("/track/{}/mute", track_guid).to_string(),
             args: vec![OscType::Bool(args.is_mute)],
-        }
+        })
     }
 
     fn collect_send_params(
@@ -605,12 +605,12 @@ impl OscRoute for TrackSoloRoute {
         Ok(())
     }
 
-    fn build_message(args: Self::SendParams, reaper: &Reaper) -> OscMessage {
+    fn build_packet(args: Self::SendParams, reaper: &Reaper) -> OscPacket {
         let track_guid = get_track_guid(reaper, args.track);
-        OscMessage {
+        OscPacket::Message(OscMessage {
             addr: format!("/track/{}/solo", track_guid).to_string(),
             args: vec![OscType::Bool(args.is_solo)],
-        }
+        })
     }
 
     fn collect_send_params(
@@ -673,12 +673,12 @@ impl OscRoute for TrackRecArmRoute {
         Ok(())
     }
 
-    fn build_message(args: Self::SendParams, reaper: &Reaper) -> OscMessage {
+    fn build_packet(args: Self::SendParams, reaper: &Reaper) -> OscPacket {
         let track_guid = get_track_guid(reaper, args.track);
-        OscMessage {
+        OscPacket::Message(OscMessage {
             addr: format!("/track/{}/rec-arm", track_guid).to_string(),
             args: vec![OscType::Bool(args.is_armed)],
-        }
+        })
     }
 
     fn collect_send_params(
@@ -742,12 +742,12 @@ impl OscRoute for TrackSendGuidRoute {
         Ok(())
     }
 
-    fn build_message(args: Self::SendParams, reaper: &Reaper) -> OscMessage {
+    fn build_packet(args: Self::SendParams, reaper: &Reaper) -> OscPacket {
         let track_guid = get_track_guid(reaper, args.track);
-        OscMessage {
+        OscPacket::Message(OscMessage {
             addr: format!("/track/{}/send/{}/guid", track_guid, args.send_index).to_string(),
             args: vec![OscType::String(args.send_guid)],
-        }
+        })
     }
 
     fn collect_send_params(
@@ -830,12 +830,12 @@ impl OscRoute for TrackSendVolumeRoute {
         Ok(())
     }
 
-    fn build_message(args: Self::SendParams, reaper: &Reaper) -> OscMessage {
+    fn build_packet(args: Self::SendParams, reaper: &Reaper) -> OscPacket {
         let track_guid = get_track_guid(reaper, args.track);
-        OscMessage {
+        OscPacket::Message(OscMessage {
             addr: format!("/track/{}/send/{}/volume", track_guid, args.send_index).to_string(),
             args: vec![OscType::Float(args.volume.into_inner() as f32)],
-        }
+        })
     }
 
     fn collect_send_params(
@@ -914,12 +914,12 @@ impl OscRoute for TrackSendPanRoute {
         Ok(())
     }
 
-    fn build_message(args: Self::SendParams, reaper: &Reaper) -> OscMessage {
+    fn build_packet(args: Self::SendParams, reaper: &Reaper) -> OscPacket {
         let track_guid = get_track_guid(reaper, args.track);
-        OscMessage {
+        OscPacket::Message(OscMessage {
             addr: format!("/track/{}/send/{}/pan", track_guid, args.send_index).to_string(),
             args: vec![OscType::Float(args.pan.into_inner() as f32)],
-        }
+        })
     }
 
     fn collect_send_params(
@@ -995,12 +995,12 @@ impl OscRoute for TrackColorRoute {
         Ok(())
     }
 
-    fn build_message(args: Self::SendParams, reaper: &Reaper) -> OscMessage {
+    fn build_packet(args: Self::SendParams, reaper: &Reaper) -> OscPacket {
         let track_guid = get_track_guid(reaper, args.track);
-        OscMessage {
+        OscPacket::Message(OscMessage {
             addr: format!("/track/{}/color", track_guid).to_string(),
             args: vec![OscType::Int(args.color)],
-        }
+        })
     }
 
     fn collect_send_params(
@@ -1013,6 +1013,67 @@ impl OscRoute for TrackColorRoute {
             Ok(TrackColorArgs {
                 track,
                 color: color.color.to_raw(),
+            })
+        }
+    }
+}
+
+// TODO: what routes do we need?
+//
+// Need a way to get all FX on a track
+//  - Maybe we just always send everything and let the other side cache what they want to keep?
+// Need a way to get all params for some FX
+// Need a way to receive parameter changes for FX (avoid being too noisy about it)
+
+pub struct TrackFXNameRoute;
+pub struct TrackFXNameParams {
+    track_guid: String,
+    fx_idx: u32,
+}
+pub struct TrackFXNameArgs {
+    pub track: reaper_medium::MediaTrack,
+    pub fx_name: String,
+}
+
+impl OscRoute for TrackFXNameRoute {
+    type SendParams = TrackFXNameArgs;
+    type ReceiveParams = TrackFXNameParams;
+
+    fn matcher(_segments: &[&str]) -> Option<Self::ReceiveParams> {
+        None
+    }
+
+    fn receive(
+        _params: Self::ReceiveParams,
+        _msg: &OscMessage,
+        _reaper: &Reaper,
+    ) -> Result<(), ReceiverError> {
+        Ok(())
+    }
+
+    fn build_packet(_args: Self::SendParams, _reaper: &Reaper) -> OscPacket {
+        OscPacket::Message(OscMessage {
+            addr: "".to_string(),
+            args: vec![],
+        })
+    }
+
+    fn collect_send_params(
+        params: &Self::ReceiveParams,
+        reaper: &Reaper,
+    ) -> Result<Self::SendParams, RouteError> {
+        let track = get_track_by_guid(reaper, &params.track_guid)?;
+        unsafe {
+            let fx_name = reaper
+                .track_fx_get_fx_name(
+                    track,
+                    reaper_medium::TrackFxLocation::NormalFxChain(params.fx_idx),
+                    24, // Name length in bytes TODO: what size makes sense here?
+                )
+                .unwrap();
+            Ok(TrackFXNameArgs {
+                track,
+                fx_name: fx_name.to_string(),
             })
         }
     }
