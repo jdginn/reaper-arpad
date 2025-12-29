@@ -280,6 +280,7 @@ fn handle_packet(reaper: Reaper, packet: OscPacket, osc_sender: &Sender<OscPacke
             dispatch_route::<TrackSendVolumeRoute>(&segments, &msg, &reaper, osc_sender);
             dispatch_route::<TrackSendPanRoute>(&segments, &msg, &reaper, osc_sender);
             dispatch_route::<TrackColorRoute>(&segments, &msg, &reaper, osc_sender);
+            dispatch_route::<AllFxInfoRoute>(&segments, &msg, &reaper, osc_sender);
         }
         OscPacket::Bundle(bundle) => {
             println!("OSC bundle: {:?}", bundle);

@@ -1,8 +1,10 @@
+use std::ffi::CStr;
+
 use crate::{
     get_track_by_guid, get_track_guid, OscRoute, Reaper, ReceiverError, RouteError,
     TrackAttributeKey,
 };
-use rosc::{OscMessage, OscPacket, OscType};
+use rosc::{OscBundle, OscMessage, OscPacket, OscType};
 
 /// @osc-doc
 /// @readable
@@ -1025,19 +1027,48 @@ impl OscRoute for TrackColorRoute {
 // Need a way to get all params for some FX
 // Need a way to receive parameter changes for FX (avoid being too noisy about it)
 
-pub struct TrackFXNameRoute;
-pub struct TrackFXNameParams {
+/// @osc-doc
+/// @readonly
+/// OSC Address: /track/{track_guid}/fx/{fx_idx}/info
+/// Arguments:
+/// - track_guid (string): unique identifier for the track
+/// - fx_idx (int): index of the FX on the track
+/// Replies with many OSC messages reporting the folowing:
+/// - name (string): name of the FX
+/// - param_count (int): number of parameters for the FX
+/// - for each param:
+///   - param_idx (int): index of the parameter
+///   - param_name (string): name of the parameter
+///   - param_value (float): current value of the parameter, normalized to 0.
+///   - param_min (float): minimum value of the parameter, normalized to 0. TODO: what here?
+///   - param_max (float): maximum value of the parameter, normalized to 1.0
+///   - param_default (float): default value of the parameter, normalized to 0.
+pub struct TrackFXInfoRoute;
+pub struct TrackFXInfoParams {
     track_guid: String,
     fx_idx: u32,
 }
-pub struct TrackFXNameArgs {
+pub struct ParamInfo {
+    pub param_name: String,
+    pub param_value: f64,
+    pub param_min: f64,
+    pub param_max: f64,
+    pub param_default: f64,
+}
+pub struct FxInfo {
+    pub name: String,
+    pub ident: String,
+    pub param_count: u32,
+    pub params: Vec<ParamInfo>,
+}
+pub struct TrackFXInfoArgs {
     pub track: reaper_medium::MediaTrack,
-    pub fx_name: String,
+    pub fx_info: FxInfo,
 }
 
-impl OscRoute for TrackFXNameRoute {
-    type SendParams = TrackFXNameArgs;
-    type ReceiveParams = TrackFXNameParams;
+impl OscRoute for TrackFXInfoRoute {
+    type SendParams = TrackFXInfoArgs;
+    type ReceiveParams = TrackFXInfoParams;
 
     fn matcher(_segments: &[&str]) -> Option<Self::ReceiveParams> {
         None
@@ -1071,10 +1102,278 @@ impl OscRoute for TrackFXNameRoute {
                     24, // Name length in bytes TODO: what size makes sense here?
                 )
                 .unwrap();
-            Ok(TrackFXNameArgs {
+            Ok(TrackFXInfoArgs {
                 track,
-                fx_name: fx_name.to_string(),
+                fx_info: FxInfo {
+                    name: fx_name.to_string(),
+                    ident: "".to_string(),
+                    param_count: reaper.track_fx_get_num_params(
+                        track,
+                        reaper_medium::TrackFxLocation::NormalFxChain(params.fx_idx),
+                    ),
+                    params: vec![],
+                },
             })
         }
+    }
+}
+
+pub struct TrackFXParamRoute;
+pub struct TrackFXParamParams {
+    track_guid: String,
+    fx_idx: u32,
+    param_idx: u32,
+}
+pub struct TrackFXParamArgs {
+    // pub track: reaper_medium::MediaTrack,
+    // pub param_value: f64,
+}
+impl OscRoute for TrackFXParamRoute {
+    type SendParams = TrackFXParamArgs;
+    type ReceiveParams = TrackFXParamParams;
+
+    fn matcher(_segments: &[&str]) -> Option<Self::ReceiveParams> {
+        None
+    }
+
+    fn receive(
+        _params: Self::ReceiveParams,
+        _msg: &OscMessage,
+        _reaper: &Reaper,
+    ) -> Result<(), ReceiverError> {
+        Ok(())
+    }
+
+    fn build_packet(_args: Self::SendParams, _reaper: &Reaper) -> OscPacket {
+        OscPacket::Message(OscMessage {
+            addr: "".to_string(),
+            args: vec![],
+        })
+    }
+
+    fn collect_send_params(
+        params: &Self::ReceiveParams,
+        reaper: &Reaper,
+    ) -> Result<Self::SendParams, RouteError> {
+        let track = get_track_by_guid(reaper, &params.track_guid)?;
+        unsafe {
+            let fx_location = reaper_medium::TrackFxLocation::NormalFxChain(params.fx_idx);
+            let num_params = reaper.track_fx_get_num_params(
+                track,
+                reaper_medium::TrackFxLocation::NormalFxChain(params.fx_idx),
+            );
+            for ident in 0..num_params {
+                let param_name = reaper.track_fx_get_param_name(
+                    track,
+                    fx_location,
+                    params.param_idx,
+                    128, // Name length in bytes TODO: what size makes sense here?
+                );
+                println!("Param {}: {}", ident, param_name.unwrap_or_default());
+                let res = reaper.track_fx_get_param_ex(track, fx_location, params.param_idx);
+            }
+            Ok(TrackFXParamArgs {})
+        }
+    }
+}
+
+/// @osc-doc
+/// @readonly
+/// OSC Address: /fxinfo
+/// Arguments:
+/// - none
+/// Replies with many OSC messages reporting the following for all FX on all tracks:
+/// TODO
+pub struct AllFxInfoRoute;
+pub struct AllFxInfoParams;
+pub struct AllFxInfoArgs {
+    pub fx: Vec<FxInfo>,
+}
+
+impl AllFxInfoRoute {}
+
+impl OscRoute for AllFxInfoRoute {
+    type SendParams = AllFxInfoArgs;
+    type ReceiveParams = AllFxInfoParams;
+
+    fn matcher(segments: &[&str]) -> Option<Self::ReceiveParams> {
+        match segments {
+            ["fxinfo"] => Some(AllFxInfoParams {}),
+            _ => None,
+        }
+    }
+
+    fn receive(
+        _params: Self::ReceiveParams,
+        _msg: &OscMessage,
+        _reaper: &Reaper,
+    ) -> Result<(), ReceiverError> {
+        Ok(())
+    }
+
+    fn build_packet(args: Self::SendParams, _reaper: &Reaper) -> OscPacket {
+        OscPacket::Bundle(OscBundle {
+            timetag: OscTimeTag::immediate(),
+            content: args
+                .fx
+                .into_iter()
+                .flat_map(|fx_info| {
+                    let mut messages = vec![];
+                    messages.push(OscPacket::Message(OscMessage {
+                        addr: "/fxinfo/name".to_string(),
+                        args: vec![OscType::String(fx_info.name.clone())],
+                    }));
+                    messages.push(OscPacket::Message(OscMessage {
+                        addr: "/fxinfo/ident".to_string(),
+                        args: vec![OscType::String(fx_info.ident.clone())],
+                    }));
+                    messages.push(OscPacket::Message(OscMessage {
+                        addr: "/fxinfo/param_count".to_string(),
+                        args: vec![OscType::Int(fx_info.param_count as i32)],
+                    }));
+                    for (param_idx, param) in fx_info.params.into_iter().enumerate() {
+                        messages.push(OscPacket::Message(OscMessage {
+                            addr: format!("/fxinfo/param/{}/name", param_idx),
+                            args: vec![OscType::String(param.param_name.clone())],
+                        }));
+                        messages.push(OscPacket::Message(OscMessage {
+                            addr: format!("/fxinfo/param/{}/value", param_idx),
+                            args: vec![OscType::Float(param.param_value as f32)],
+                        }));
+                        messages.push(OscPacket::Message(OscMessage {
+                            addr: format!("/fxinfo/param/{}/min", param_idx),
+                            args: vec![OscType::Float(param.param_min as f32)],
+                        }));
+                        messages.push(OscPacket::Message(OscMessage {
+                            addr: format!("/fxinfo/param/{}/max", param_idx),
+                            args: vec![OscType::Float(param.param_max as f32)],
+                        }));
+                        messages.push(OscPacket::Message(OscMessage {
+                            addr: format!("/fxinfo/param/{}/default", param_idx),
+                            args: vec![OscType::Float(param.param_default as f32)],
+                        }));
+                    }
+                    messages
+                })
+                .collect(),
+        })
+    }
+
+    fn collect_send_params(
+        _params: &Self::ReceiveParams,
+        reaper: &Reaper,
+    ) -> Result<Self::SendParams, RouteError> {
+        fn enum_installed_fx(reaper: &Reaper, index: i32) -> Option<(String, String)> {
+            // Allocate zero-initialized buffers
+            unsafe {
+                let name_buf = std::ffi::CString::from_vec_unchecked(vec![0u8; 256]);
+                let ident_buf = std::ffi::CString::from_vec_unchecked(vec![0u8; 256]);
+
+                // Prepare mutable raw pointers to store `*const i8`
+                let mut name_ptr: *const i8 = name_buf.as_ptr();
+                let mut ident_ptr: *const i8 = ident_buf.as_ptr();
+
+                // Cast mutable references to mutable pointers
+                let name_out_ptr: *mut *const i8 = &mut name_ptr;
+                let ident_out_ptr: *mut *const i8 = &mut ident_ptr;
+
+                // Make the unsafe FFI call
+                if !reaper
+                    .low()
+                    .EnumInstalledFX(index, name_out_ptr, ident_out_ptr)
+                {
+                    return None;
+                }
+
+                // Convert results from raw buffer to Strings
+                let name = CStr::from_ptr(name_ptr).to_string_lossy().into_owned();
+
+                let ident = CStr::from_ptr(ident_ptr).to_string_lossy().into_owned();
+
+                println!("Converted Name: {}, Ident: {}", name, ident);
+                Some((name, ident))
+            }
+        }
+
+        let mut fx_infos = vec![];
+
+        // Insert a temporary track to enumerate FX
+        reaper.insert_track_at_index(0, reaper_medium::TrackDefaultsBehavior::OmitDefaultEnvAndFx);
+        let track = reaper
+            .get_track(reaper_medium::ProjectContext::CurrentProject, 0)
+            .ok_or_else(|| {
+                RouteError::ValueNotFound(
+                    "Failed to create temporary track for FX enumeration".to_string(),
+                )
+            })?;
+        // TODO: delete temporary track after use
+
+        let mut i = 0;
+        while let Some((name, ident)) = enum_installed_fx(reaper, i) {
+            let mut params = vec![];
+            unsafe {
+                println!("Adding FX {} ({}) to temporary track", name, ident);
+                let fx_index = reaper
+                    .track_fx_add_by_name_add(
+                        track,
+                        name.clone(),
+                        reaper_medium::TrackFxChainType::NormalFxChain,
+                        reaper_medium::AddFxBehavior::AddIfNotFound,
+                    )
+                    .unwrap();
+                println!("Added FX {} at index {}", name, fx_index);
+                let num_params = reaper.track_fx_get_num_params(
+                    track,
+                    reaper_medium::TrackFxLocation::NormalFxChain(fx_index),
+                );
+                for param_idx in 0..num_params {
+                    let param_name = reaper
+                        .track_fx_get_param_name(
+                            track,
+                            reaper_medium::TrackFxLocation::NormalFxChain(fx_index),
+                            param_idx,
+                            128, // Name length in bytes TODO: what size makes sense here?
+                        )
+                        .unwrap_or_default();
+                    let get_param_res = reaper.track_fx_get_param_ex(
+                        track,
+                        reaper_medium::TrackFxLocation::NormalFxChain(fx_index),
+                        param_idx,
+                    );
+                    println!("Dumping param at index {}", param_idx);
+                    println!(
+                        "    Param {:?}: {:?} = {:?} / {:?} / {:?}",
+                        param_idx,
+                        param_name,
+                        get_param_res.min_value,
+                        get_param_res.current_value,
+                        get_param_res.max_value
+                    );
+                    params.push(ParamInfo {
+                        param_name: "foo".to_string(),
+                        param_value: get_param_res.current_value,
+                        param_min: get_param_res.min_value,
+                        param_max: get_param_res.max_value,
+                        param_default: 0.0, // TODO: get default value
+                    });
+                    // reaper
+                    //     .track_fx_delete(
+                    //         track,
+                    //         reaper_medium::TrackFxLocation::NormalFxChain(fx_index + 1),
+                    //     )
+                    //     .unwrap();
+                }
+            }
+            println!("FX {}: {} ({})", i, name, ident);
+            fx_infos.push(FxInfo {
+                name,
+                ident,
+                param_count: 0,
+                params: vec![],
+            });
+            i += 1;
+        }
+        unsafe { reaper.delete_track(track) };
+        Ok(AllFxInfoArgs { fx: fxinfos })
     }
 }
