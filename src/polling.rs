@@ -81,27 +81,37 @@ impl PollSource for TrackColorPollSource {
             if let Some(prev_color) = self.prev_colors.get(&guid) {
                 if *prev_color != color {
                     self.prev_colors.insert(guid.clone(), color);
-                    osc_sender
-                        .send(osc_routes::TrackColorRoute::build_packet(
-                            osc_routes::TrackColorArgs {
-                                track,
-                                color: color.to_raw(),
-                            },
-                            &self.reaper,
-                        ))
-                        .map_err(PollError::Send)?;
-                }
-            } else {
-                self.prev_colors.insert(guid.clone(), color);
-                osc_sender
-                    .send(osc_routes::TrackColorRoute::build_packet(
+                    osc_routes::TrackColorRoute::build_packets(
                         osc_routes::TrackColorArgs {
                             track,
                             color: color.to_raw(),
                         },
                         &self.reaper,
-                    ))
-                    .map_err(PollError::Send)?;
+                    )
+                    .into_iter()
+                    .for_each(|packet| {
+                        osc_sender
+                            .send(packet)
+                            .map_err(PollError::Send)
+                            .unwrap_or(());
+                    });
+                }
+            } else {
+                self.prev_colors.insert(guid.clone(), color);
+                osc_routes::TrackColorRoute::build_packets(
+                    osc_routes::TrackColorArgs {
+                        track,
+                        color: color.to_raw(),
+                    },
+                    &self.reaper,
+                )
+                .into_iter()
+                .for_each(|packet| {
+                    osc_sender
+                        .send(packet)
+                        .map_err(PollError::Send)
+                        .unwrap_or(());
+                });
             }
         }
         Ok(())

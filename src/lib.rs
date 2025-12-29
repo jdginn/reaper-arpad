@@ -72,7 +72,7 @@ pub(crate) trait OscRoute {
         msg: &OscMessage,
         reaper: &Reaper,
     ) -> Result<(), ReceiverError>;
-    fn build_packet(params: Self::SendParams, reaper: &Reaper) -> OscPacket;
+    fn build_packets(params: Self::SendParams, reaper: &Reaper) -> Vec<OscPacket>;
     /// Given receive params and reaper, build the corresponding SendParams for query
     fn collect_send_params(
         params: &Self::ReceiveParams,
@@ -97,8 +97,11 @@ fn dispatch_route<T: OscRoute>(
         if is_query {
             match T::collect_send_params(&params, reaper) {
                 Ok(send_params) => {
-                    let response_packet = T::build_packet(send_params, reaper);
-                    osc_sender.send(response_packet).unwrap();
+                    T::build_packets(send_params, reaper)
+                        .into_iter()
+                        .for_each(|packet| {
+                            osc_sender.send(packet).unwrap();
+                        });
                 }
                 Err(e) => {
                     eprintln!("Query failed: {:?}", e);
@@ -139,15 +142,17 @@ impl ControlSurface for ArpadSurface {
             let guid = get_track_guid(&self.reaper, track);
             temp_guids.insert(guid.clone());
             let track_idx = get_track_idx(&self.reaper, track);
-            self.osc_sender
-                .send(TrackIndexRoute::build_packet(
-                    TrackIndexArgs {
-                        track,
-                        index: track_idx as i32,
-                    },
-                    &self.reaper,
-                ))
-                .unwrap();
+            TrackIndexRoute::build_packets(
+                TrackIndexArgs {
+                    track,
+                    index: track_idx as i32,
+                },
+                &self.reaper,
+            )
+            .into_iter()
+            .for_each(|packet| {
+                self.osc_sender.send(packet).unwrap();
+            });
             unsafe {
                 for i in 0..self
                     .reaper
@@ -161,71 +166,87 @@ impl ControlSurface for ArpadSurface {
                             i,
                         )
                         .unwrap();
-                    self.osc_sender
-                        .send(TrackSendGuidRoute::build_packet(
-                            TrackSendGuidArgs {
-                                track,
-                                send_index: i as i32,
-                                send_guid: get_track_guid(&self.reaper, dest),
-                            },
-                            &self.reaper,
-                        ))
-                        .unwrap();
+                    TrackSendGuidRoute::build_packets(
+                        TrackSendGuidArgs {
+                            track,
+                            send_index: i as i32,
+                            send_guid: get_track_guid(&self.reaper, dest),
+                        },
+                        &self.reaper,
+                    )
+                    .into_iter()
+                    .for_each(|packet| {
+                        self.osc_sender.send(packet).unwrap();
+                    });
                 }
             }
         }
         let mut known_guids = self.known_guids.borrow_mut();
         for guid in known_guids.difference(&temp_guids) {
-            self.osc_sender
-                .send(TrackDeleteRoute::build_packet(
-                    TrackDeleteArgs {
-                        track_guid: guid.clone(),
-                    },
-                    &self.reaper,
-                ))
-                .unwrap();
+            TrackDeleteRoute::build_packets(
+                TrackDeleteArgs {
+                    track_guid: guid.clone(),
+                },
+                &self.reaper,
+            )
+            .into_iter()
+            .for_each(|packet| {
+                self.osc_sender.send(packet).unwrap();
+            });
         }
         known_guids.clear();
         known_guids.extend(temp_guids.iter().cloned());
     }
     // This is also called when track color changes!
     fn set_track_title(&self, args: reaper_medium::SetTrackTitleArgs) {
-        self.osc_sender
-            .send(osc_routes::TrackNameRoute::build_packet(
-                TrackNameArgs {
-                    track: args.track,
-                    name: args.name.to_string(),
-                },
-                &self.reaper,
-            ));
+        osc_routes::TrackNameRoute::build_packets(
+            TrackNameArgs {
+                track: args.track,
+                name: args.name.to_string(),
+            },
+            &self.reaper,
+        )
+        .into_iter()
+        .for_each(|packet| {
+            self.osc_sender.send(packet).unwrap();
+        });
         let color = unsafe {
             self.reaper
                 .get_set_media_track_info_get_custom_color(args.track)
                 .color
         };
-        self.osc_sender
-            .send(osc_routes::TrackColorRoute::build_packet(
-                TrackColorArgs {
-                    track: args.track,
-                    color: color.to_raw(),
-                },
-                &self.reaper,
-            ));
+        osc_routes::TrackColorRoute::build_packets(
+            TrackColorArgs {
+                track: args.track,
+                color: color.to_raw(),
+            },
+            &self.reaper,
+        )
+        .into_iter()
+        .for_each(|packet| {
+            self.osc_sender.send(packet).unwrap();
+        });
     }
     fn set_surface_volume(&self, args: reaper_medium::SetSurfaceVolumeArgs) {
-        self.osc_sender
-            .send(osc_routes::TrackVolumeRoute::build_packet(
-                args,
-                &self.reaper,
-            ));
+        osc_routes::TrackVolumeRoute::build_packets(args, &self.reaper)
+            .into_iter()
+            .for_each(|packet| {
+                self.osc_sender.send(packet).unwrap();
+            });
     }
     fn set_surface_pan(&self, args: reaper_medium::SetSurfacePanArgs) {
-        self.osc_sender
-            .send(osc_routes::TrackPanRoute::build_packet(args, &self.reaper));
+        osc_routes::TrackPanRoute::build_packets(args, &self.reaper)
+            .into_iter()
+            .for_each(|packet| {
+                self.osc_sender.send(packet).unwrap();
+            });
     }
     fn set_surface_mute(&self, args: reaper_medium::SetSurfaceMuteArgs) {
-        self.osc_sender
-            .send(osc_routes::TrackMuteRoute::build_packet(args, &self.reaper));
+        osc_routes::TrackMuteRoute::build_packets(args, &self.reaper)
+            .into_iter()
+            .for_each(|packet| {
+                self.osc_sender.send(packet).unwrap();
+            });
     }
     fn run(&mut self) {
         self.poll_manager.poll_all(&self.osc_sender);
@@ -255,7 +276,12 @@ fn start_sender_thread(dev_addr: SocketAddrV4, sock: UdpSocket, osc_receiver: Re
     thread::spawn(move || {
         for msg in osc_receiver.iter() {
             if let Ok(buf) = encoder::encode(&msg) {
-                let _ = sock.send_to(buf.as_slice(), dev_addr);
+                match sock.send_to(buf.as_slice(), dev_addr) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        eprintln!("OSC send error: {:?}", e);
+                    }
+                }
             }
         }
     });

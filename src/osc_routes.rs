@@ -1,10 +1,11 @@
 use std::ffi::CStr;
+use std::time::SystemTime;
 
 use crate::{
     get_track_by_guid, get_track_guid, OscRoute, Reaper, ReceiverError, RouteError,
     TrackAttributeKey,
 };
-use rosc::{OscBundle, OscMessage, OscPacket, OscType};
+use rosc::{OscBundle, OscMessage, OscPacket, OscTime, OscType};
 
 /// @osc-doc
 /// @readable
@@ -32,11 +33,11 @@ impl OscRoute for NumTracksRoute {
         Ok(())
     }
 
-    fn build_packet(args: Self::SendParams, _: &Reaper) -> OscPacket {
-        OscPacket::Message(OscMessage {
+    fn build_packets(args: Self::SendParams, _: &Reaper) -> Vec<OscPacket> {
+        vec![OscPacket::Message(OscMessage {
             addr: "/num_tracks".to_string(),
             args: vec![OscType::Int(args.num_tracks)],
-        })
+        })]
     }
 
     fn collect_send_params(
@@ -74,16 +75,16 @@ impl OscRoute for TrackAllGuidsRoute {
         Ok(())
     }
 
-    fn build_packet(args: Self::SendParams, _: &Reaper) -> OscPacket {
+    fn build_packets(args: Self::SendParams, _: &Reaper) -> Vec<OscPacket> {
         let osc_args = args
             .guids
             .into_iter()
             .map(OscType::String)
             .collect::<Vec<OscType>>();
-        OscPacket::Message(OscMessage {
+        vec![OscPacket::Message(OscMessage {
             addr: "/track/all_guids".to_string(),
             args: osc_args,
-        })
+        })]
     }
 
     fn collect_send_params(
@@ -136,12 +137,12 @@ impl OscRoute for TrackIndexRoute {
         Ok(())
     }
 
-    fn build_packet(args: Self::SendParams, reaper: &Reaper) -> OscPacket {
+    fn build_packets(args: Self::SendParams, reaper: &Reaper) -> Vec<OscPacket> {
         let track_guid = get_track_guid(reaper, args.track);
-        OscPacket::Message(OscMessage {
+        vec![OscPacket::Message(OscMessage {
             addr: format!("/track/{}/index", track_guid).to_string(),
             args: vec![OscType::Int(args.index)],
-        })
+        })]
     }
 
     fn collect_send_params(
@@ -196,11 +197,11 @@ impl OscRoute for TrackDeleteRoute {
         Ok(())
     }
 
-    fn build_packet(args: Self::SendParams, _: &Reaper) -> OscPacket {
-        OscPacket::Message(OscMessage {
+    fn build_packets(args: Self::SendParams, _: &Reaper) -> Vec<OscPacket> {
+        vec![OscPacket::Message(OscMessage {
             addr: format!("/track/{}/delete", args.track_guid).to_string(),
             args: vec![],
-        })
+        })]
     }
 
     fn collect_send_params(
@@ -261,12 +262,12 @@ impl OscRoute for TrackNameRoute {
         Ok(())
     }
 
-    fn build_packet(args: Self::SendParams, reaper: &Reaper) -> OscPacket {
+    fn build_packets(args: Self::SendParams, reaper: &Reaper) -> Vec<OscPacket> {
         let track_guid = get_track_guid(reaper, args.track);
-        OscPacket::Message(OscMessage {
+        vec![OscPacket::Message(OscMessage {
             addr: format!("/track/{}/name", track_guid).to_string(),
             args: vec![OscType::String(args.name)],
-        })
+        })]
     }
 
     fn collect_send_params(
@@ -328,12 +329,12 @@ impl OscRoute for TrackSelectedRoute {
         Ok(())
     }
 
-    fn build_packet(args: Self::SendParams, reaper: &Reaper) -> OscPacket {
+    fn build_packets(args: Self::SendParams, reaper: &Reaper) -> Vec<OscPacket> {
         let track_guid = get_track_guid(reaper, args.track);
-        OscPacket::Message(OscMessage {
+        vec![OscPacket::Message(OscMessage {
             addr: format!("/track/{}/selected", track_guid).to_string(),
             args: vec![OscType::Bool(args.is_selected)],
-        })
+        })]
     }
 
     fn collect_send_params(
@@ -403,15 +404,15 @@ impl OscRoute for TrackVolumeRoute {
         }
     }
 
-    fn build_packet(args: Self::SendParams, reaper: &Reaper) -> OscPacket {
+    fn build_packets(args: Self::SendParams, reaper: &Reaper) -> Vec<OscPacket> {
         let track_guid = get_track_guid(reaper, args.track);
         let vol_db = args.volume.to_db_ex(reaper_medium::Db::MINUS_150_DB);
         let vol_lin = reaper.db2slider(vol_db);
         let vol_norm = vol_lin.get() / reaper_medium::VolumeSliderValue::TWELVE_DB.get();
-        OscPacket::Message(OscMessage {
+        vec![OscPacket::Message(OscMessage {
             addr: format!("/track/{}/volume", track_guid).to_string(),
             args: vec![OscType::Float(vol_norm as f32)],
-        })
+        })]
     }
 
     fn collect_send_params(
@@ -473,12 +474,12 @@ impl OscRoute for TrackPanRoute {
         Ok(())
     }
 
-    fn build_packet(args: Self::SendParams, reaper: &Reaper) -> OscPacket {
+    fn build_packets(args: Self::SendParams, reaper: &Reaper) -> Vec<OscPacket> {
         let track_guid = get_track_guid(reaper, args.track);
-        OscPacket::Message(OscMessage {
+        vec![OscPacket::Message(OscMessage {
             addr: format!("/track/{}/pan", track_guid).to_string(),
             args: vec![OscType::Float(args.pan.into_inner() as f32)],
-        })
+        })]
     }
 
     fn collect_send_params(
@@ -540,12 +541,12 @@ impl OscRoute for TrackMuteRoute {
         Ok(())
     }
 
-    fn build_packet(args: Self::SendParams, reaper: &Reaper) -> OscPacket {
+    fn build_packets(args: Self::SendParams, reaper: &Reaper) -> Vec<OscPacket> {
         let track_guid = get_track_guid(reaper, args.track);
-        OscPacket::Message(OscMessage {
+        vec![OscPacket::Message(OscMessage {
             addr: format!("/track/{}/mute", track_guid).to_string(),
             args: vec![OscType::Bool(args.is_mute)],
-        })
+        })]
     }
 
     fn collect_send_params(
@@ -607,12 +608,12 @@ impl OscRoute for TrackSoloRoute {
         Ok(())
     }
 
-    fn build_packet(args: Self::SendParams, reaper: &Reaper) -> OscPacket {
+    fn build_packets(args: Self::SendParams, reaper: &Reaper) -> Vec<OscPacket> {
         let track_guid = get_track_guid(reaper, args.track);
-        OscPacket::Message(OscMessage {
+        vec![OscPacket::Message(OscMessage {
             addr: format!("/track/{}/solo", track_guid).to_string(),
             args: vec![OscType::Bool(args.is_solo)],
-        })
+        })]
     }
 
     fn collect_send_params(
@@ -675,12 +676,12 @@ impl OscRoute for TrackRecArmRoute {
         Ok(())
     }
 
-    fn build_packet(args: Self::SendParams, reaper: &Reaper) -> OscPacket {
+    fn build_packets(args: Self::SendParams, reaper: &Reaper) -> Vec<OscPacket> {
         let track_guid = get_track_guid(reaper, args.track);
-        OscPacket::Message(OscMessage {
+        vec![OscPacket::Message(OscMessage {
             addr: format!("/track/{}/rec-arm", track_guid).to_string(),
             args: vec![OscType::Bool(args.is_armed)],
-        })
+        })]
     }
 
     fn collect_send_params(
@@ -744,12 +745,12 @@ impl OscRoute for TrackSendGuidRoute {
         Ok(())
     }
 
-    fn build_packet(args: Self::SendParams, reaper: &Reaper) -> OscPacket {
+    fn build_packets(args: Self::SendParams, reaper: &Reaper) -> Vec<OscPacket> {
         let track_guid = get_track_guid(reaper, args.track);
-        OscPacket::Message(OscMessage {
+        vec![OscPacket::Message(OscMessage {
             addr: format!("/track/{}/send/{}/guid", track_guid, args.send_index).to_string(),
             args: vec![OscType::String(args.send_guid)],
-        })
+        })]
     }
 
     fn collect_send_params(
@@ -832,12 +833,12 @@ impl OscRoute for TrackSendVolumeRoute {
         Ok(())
     }
 
-    fn build_packet(args: Self::SendParams, reaper: &Reaper) -> OscPacket {
+    fn build_packets(args: Self::SendParams, reaper: &Reaper) -> Vec<OscPacket> {
         let track_guid = get_track_guid(reaper, args.track);
-        OscPacket::Message(OscMessage {
+        vec![OscPacket::Message(OscMessage {
             addr: format!("/track/{}/send/{}/volume", track_guid, args.send_index).to_string(),
             args: vec![OscType::Float(args.volume.into_inner() as f32)],
-        })
+        })]
     }
 
     fn collect_send_params(
@@ -916,12 +917,12 @@ impl OscRoute for TrackSendPanRoute {
         Ok(())
     }
 
-    fn build_packet(args: Self::SendParams, reaper: &Reaper) -> OscPacket {
+    fn build_packets(args: Self::SendParams, reaper: &Reaper) -> Vec<OscPacket> {
         let track_guid = get_track_guid(reaper, args.track);
-        OscPacket::Message(OscMessage {
+        vec![OscPacket::Message(OscMessage {
             addr: format!("/track/{}/send/{}/pan", track_guid, args.send_index).to_string(),
             args: vec![OscType::Float(args.pan.into_inner() as f32)],
-        })
+        })]
     }
 
     fn collect_send_params(
@@ -997,12 +998,12 @@ impl OscRoute for TrackColorRoute {
         Ok(())
     }
 
-    fn build_packet(args: Self::SendParams, reaper: &Reaper) -> OscPacket {
+    fn build_packets(args: Self::SendParams, reaper: &Reaper) -> Vec<OscPacket> {
         let track_guid = get_track_guid(reaper, args.track);
-        OscPacket::Message(OscMessage {
+        vec![OscPacket::Message(OscMessage {
             addr: format!("/track/{}/color", track_guid).to_string(),
             args: vec![OscType::Int(args.color)],
-        })
+        })]
     }
 
     fn collect_send_params(
@@ -1048,13 +1049,15 @@ pub struct TrackFXInfoParams {
     track_guid: String,
     fx_idx: u32,
 }
+#[derive(Clone)]
 pub struct ParamInfo {
     pub param_name: String,
     pub param_value: f64,
     pub param_min: f64,
     pub param_max: f64,
-    pub param_default: f64,
+    // pub param_step_size: Option<f64>,
 }
+#[derive(Clone)]
 pub struct FxInfo {
     pub name: String,
     pub ident: String,
@@ -1082,11 +1085,11 @@ impl OscRoute for TrackFXInfoRoute {
         Ok(())
     }
 
-    fn build_packet(_args: Self::SendParams, _reaper: &Reaper) -> OscPacket {
-        OscPacket::Message(OscMessage {
+    fn build_packets(_args: Self::SendParams, _reaper: &Reaper) -> Vec<OscPacket> {
+        vec![OscPacket::Message(OscMessage {
             addr: "".to_string(),
             args: vec![],
-        })
+        })]
     }
 
     fn collect_send_params(
@@ -1144,11 +1147,11 @@ impl OscRoute for TrackFXParamRoute {
         Ok(())
     }
 
-    fn build_packet(_args: Self::SendParams, _reaper: &Reaper) -> OscPacket {
-        OscPacket::Message(OscMessage {
+    fn build_packets(_args: Self::SendParams, _reaper: &Reaper) -> Vec<OscPacket> {
+        vec![OscPacket::Message(OscMessage {
             addr: "".to_string(),
             args: vec![],
-        })
+        })]
     }
 
     fn collect_send_params(
@@ -1169,7 +1172,6 @@ impl OscRoute for TrackFXParamRoute {
                     params.param_idx,
                     128, // Name length in bytes TODO: what size makes sense here?
                 );
-                println!("Param {}: {}", ident, param_name.unwrap_or_default());
                 let res = reaper.track_fx_get_param_ex(track, fx_location, params.param_idx);
             }
             Ok(TrackFXParamArgs {})
@@ -1183,14 +1185,57 @@ impl OscRoute for TrackFXParamRoute {
 /// Arguments:
 /// - none
 /// Replies with many OSC messages reporting the following for all FX on all tracks:
-/// TODO
+///
+/// @osc-doc
+/// @readonly
+/// OSC Address: /fxinfo/{ident}/name
+/// Arguments:
+/// - ident (string): unique identifier for the FX
+/// - name (string): name of the FX
+///
+/// @osc-doc
+/// @readonly
+/// OSC Address: /fxinfo/{ident}/param_count
+/// Arguments:
+/// - ident (string): unique identifier for the FX
+/// - param_count (int): number of parameters for the FX
+///
+/// @osc-doc
+/// @readonly
+/// OSC Address: /fxinfo/{ident}/param/{param_idx}/name
+/// Arguments:
+/// - ident (string): unique identifier for the FX
+/// - param_idx (int): index of the parameter
+/// - param_name (string): name of the parameter
+///
+/// @osc-doc
+/// @readonly
+/// OSC Address: /fxinfo/{ident}/param/{param_idx}/value
+/// Arguments:
+/// - ident (string): unique identifier for the FX
+/// - param_idx (int): index of the parameter
+/// - param_value (float): current raw value of the parameter
+///
+/// @osc-doc
+/// @readonly
+/// OSC Address: /fxinfo/{ident}/param/{param_idx}/min
+/// Arguments:
+/// - ident (string): unique identifier for the FX
+/// - param_idx (int): index of the parameter
+/// - param_min (float): minimum raw value of the parameter
+///
+/// @osc-doc
+/// @readonly
+/// OSC Address: /fxinfo/{ident}/param/{param_idx}/max
+/// Arguments:
+/// - ident (string): unique identifier for the FX
+/// - param_idx (int): index of the parameter
+/// - param_max (float): maximum raw value of the parameter
 pub struct AllFxInfoRoute;
 pub struct AllFxInfoParams;
 pub struct AllFxInfoArgs {
     pub fx: Vec<FxInfo>,
 }
-
-impl AllFxInfoRoute {}
 
 impl OscRoute for AllFxInfoRoute {
     type SendParams = AllFxInfoArgs;
@@ -1211,52 +1256,97 @@ impl OscRoute for AllFxInfoRoute {
         Ok(())
     }
 
-    fn build_packet(args: Self::SendParams, _reaper: &Reaper) -> OscPacket {
-        OscPacket::Bundle(OscBundle {
-            timetag: OscTimeTag::immediate(),
-            content: args
-                .fx
-                .into_iter()
-                .flat_map(|fx_info| {
-                    let mut messages = vec![];
+    fn build_packets(args: Self::SendParams, _reaper: &Reaper) -> Vec<OscPacket> {
+        args.fx
+            .iter()
+            .flat_map(|fx_info| {
+                let mut messages = vec![];
+                let ident = format!("<{}>", fx_info.ident.clone());
+                // messages.push(OscPacket::Message(OscMessage {
+                //     addr: format!("/fxinfo/{}/ident", ident).to_string(),
+                //     args: vec![OscType::String(fx_info.ident.clone())],
+                // }));
+                messages.push(OscPacket::Message(OscMessage {
+                    addr: format!("/fxinfo/{}/name", ident).to_string(),
+                    args: vec![OscType::String(fx_info.name.clone())],
+                }));
+                messages.push(OscPacket::Message(OscMessage {
+                    addr: format!("/fxinfo/{}/param_count", ident).to_string(),
+                    args: vec![OscType::Int(fx_info.param_count.clone() as i32)],
+                }));
+                for (param_idx, param) in fx_info.params.clone().into_iter().enumerate() {
                     messages.push(OscPacket::Message(OscMessage {
-                        addr: "/fxinfo/name".to_string(),
-                        args: vec![OscType::String(fx_info.name.clone())],
+                        addr: format!("/fxinfo/{}/param/{}/name", ident, param_idx),
+                        args: vec![OscType::String(param.param_name.clone())],
+                    }));
+                    // messages.push(OscPacket::Message(OscMessage {
+                    //     addr: format!("/fxinfo/{}/param/{}/value", ident, param_idx),
+                    //     args: vec![OscType::Float(param.param_value as f32)],
+                    // }));
+                    messages.push(OscPacket::Message(OscMessage {
+                        addr: format!("/fxinfo/{}/param/{}/min", ident, param_idx),
+                        args: vec![OscType::Float(param.param_min as f32)],
                     }));
                     messages.push(OscPacket::Message(OscMessage {
-                        addr: "/fxinfo/ident".to_string(),
-                        args: vec![OscType::String(fx_info.ident.clone())],
+                        addr: format!("/fxinfo/{}/param/{}/max", ident, param_idx),
+                        args: vec![OscType::Float(param.param_max as f32)],
                     }));
-                    messages.push(OscPacket::Message(OscMessage {
-                        addr: "/fxinfo/param_count".to_string(),
-                        args: vec![OscType::Int(fx_info.param_count as i32)],
-                    }));
-                    for (param_idx, param) in fx_info.params.into_iter().enumerate() {
-                        messages.push(OscPacket::Message(OscMessage {
-                            addr: format!("/fxinfo/param/{}/name", param_idx),
-                            args: vec![OscType::String(param.param_name.clone())],
-                        }));
-                        messages.push(OscPacket::Message(OscMessage {
-                            addr: format!("/fxinfo/param/{}/value", param_idx),
-                            args: vec![OscType::Float(param.param_value as f32)],
-                        }));
-                        messages.push(OscPacket::Message(OscMessage {
-                            addr: format!("/fxinfo/param/{}/min", param_idx),
-                            args: vec![OscType::Float(param.param_min as f32)],
-                        }));
-                        messages.push(OscPacket::Message(OscMessage {
-                            addr: format!("/fxinfo/param/{}/max", param_idx),
-                            args: vec![OscType::Float(param.param_max as f32)],
-                        }));
-                        messages.push(OscPacket::Message(OscMessage {
-                            addr: format!("/fxinfo/param/{}/default", param_idx),
-                            args: vec![OscType::Float(param.param_default as f32)],
-                        }));
-                    }
-                    messages
-                })
-                .collect(),
-        })
+                    // messages.push(OscPacket::Message(OscMessage {
+                    //     addr: format!("/fxinfo/{}/param/{}/default", ident, param_idx),
+                    //     args: vec![OscType::Float(param.param_default as f32)],
+                    // }));
+                }
+                // println!("This FX messages: {:?}", messages);
+                messages
+            })
+            .collect()
+        // vec![OscPacket::Bundle(OscBundle {
+        //     timetag: OscTime::try_from(now).unwrap(),
+        //     content: args
+        //         .fx
+        //         .into_iter()
+        //         .flat_map(|fx_info| {
+        //             let mut messages = vec![];
+        //             let ident = fx_info.name.clone();
+        //             // messages.push(OscPacket::Message(OscMessage {
+        //             //     addr: format!("/fxinfo/{}/ident", ident).to_string(),
+        //             //     args: vec![OscType::String(fx_info.ident.clone())],
+        //             // }));
+        //             messages.push(OscPacket::Message(OscMessage {
+        //                 addr: format!("/fxinfo/{}/name", ident).to_string(),
+        //                 args: vec![OscType::String(fx_info.name.clone())],
+        //             }));
+        //             messages.push(OscPacket::Message(OscMessage {
+        //                 addr: format!("/fxinfo/{}/param_count", ident).to_string(),
+        //                 args: vec![OscType::Int(fx_info.param_count as i32)],
+        //             }));
+        //             for (param_idx, param) in fx_info.params.into_iter().enumerate() {
+        //                 messages.push(OscPacket::Message(OscMessage {
+        //                     addr: format!("/fxinfo/{}/param/{}/name", ident, param_idx),
+        //                     args: vec![OscType::String(param.param_name.clone())],
+        //                 }));
+        //                 // messages.push(OscPacket::Message(OscMessage {
+        //                 //     addr: format!("/fxinfo/{}/param/{}/value", ident, param_idx),
+        //                 //     args: vec![OscType::Float(param.param_value as f32)],
+        //                 // }));
+        //                 messages.push(OscPacket::Message(OscMessage {
+        //                     addr: format!("/fxinfo/{}/param/{}/min", ident, param_idx),
+        //                     args: vec![OscType::Float(param.param_min as f32)],
+        //                 }));
+        //                 messages.push(OscPacket::Message(OscMessage {
+        //                     addr: format!("/fxinfo/{}/param/{}/max", ident, param_idx),
+        //                     args: vec![OscType::Float(param.param_max as f32)],
+        //                 }));
+        //                 // messages.push(OscPacket::Message(OscMessage {
+        //                 //     addr: format!("/fxinfo/{}/param/{}/default", ident, param_idx),
+        //                 //     args: vec![OscType::Float(param.param_default as f32)],
+        //                 // }));
+        //             }
+        //             // println!("This FX messages: {:?}", messages);
+        //             messages
+        //         })
+        //         .collect(),
+        // })]
     }
 
     fn collect_send_params(
@@ -1290,7 +1380,7 @@ impl OscRoute for AllFxInfoRoute {
 
                 let ident = CStr::from_ptr(ident_ptr).to_string_lossy().into_owned();
 
-                println!("Converted Name: {}, Ident: {}", name, ident);
+                // println!("Converted Name: {}, Ident: {}", name, ident);
                 Some((name, ident))
             }
         }
@@ -1306,13 +1396,12 @@ impl OscRoute for AllFxInfoRoute {
                     "Failed to create temporary track for FX enumeration".to_string(),
                 )
             })?;
-        // TODO: delete temporary track after use
 
         let mut i = 0;
         while let Some((name, ident)) = enum_installed_fx(reaper, i) {
             let mut params = vec![];
             unsafe {
-                println!("Adding FX {} ({}) to temporary track", name, ident);
+                // println!("Adding FX {} ({}) to temporary track", name, ident);
                 let fx_index = reaper
                     .track_fx_add_by_name_add(
                         track,
@@ -1321,7 +1410,7 @@ impl OscRoute for AllFxInfoRoute {
                         reaper_medium::AddFxBehavior::AddIfNotFound,
                     )
                     .unwrap();
-                println!("Added FX {} at index {}", name, fx_index);
+                // println!("Added FX {} at index {}", name, fx_index);
                 let num_params = reaper.track_fx_get_num_params(
                     track,
                     reaper_medium::TrackFxLocation::NormalFxChain(fx_index),
@@ -1335,45 +1424,42 @@ impl OscRoute for AllFxInfoRoute {
                             128, // Name length in bytes TODO: what size makes sense here?
                         )
                         .unwrap_or_default();
-                    let get_param_res = reaper.track_fx_get_param_ex(
+                    let param_ex = reaper.track_fx_get_param_ex(
                         track,
                         reaper_medium::TrackFxLocation::NormalFxChain(fx_index),
                         param_idx,
                     );
-                    println!("Dumping param at index {}", param_idx);
-                    println!(
-                        "    Param {:?}: {:?} = {:?} / {:?} / {:?}",
-                        param_idx,
-                        param_name,
-                        get_param_res.min_value,
-                        get_param_res.current_value,
-                        get_param_res.max_value
-                    );
+                    // let param_step_size = reaper.track_fx_get_parameter_step_sizes(
+                    //     track,
+                    //     reaper_medium::TrackFxLocation::NormalFxChain(fx_index),
+                    //     param_idx,
+                    // );
+                    // println!(
+                    //     "    Param {:?}: {:?} = {:?} / {:?} / {:?}",
+                    //     param_idx,
+                    //     param_name,
+                    //     param_ex.min_value,
+                    //     param_ex.current_value,
+                    //     param_ex.max_value
+                    // );
                     params.push(ParamInfo {
-                        param_name: "foo".to_string(),
-                        param_value: get_param_res.current_value,
-                        param_min: get_param_res.min_value,
-                        param_max: get_param_res.max_value,
-                        param_default: 0.0, // TODO: get default value
+                        param_name: "foo".to_string(), //TODO: fixme
+                        param_value: param_ex.current_value,
+                        param_min: param_ex.min_value,
+                        param_max: param_ex.max_value,
                     });
-                    // reaper
-                    //     .track_fx_delete(
-                    //         track,
-                    //         reaper_medium::TrackFxLocation::NormalFxChain(fx_index + 1),
-                    //     )
-                    //     .unwrap();
                 }
+                // println!("FX {}: {} ({})", i, name, ident);
+                fx_infos.push(FxInfo {
+                    name,
+                    ident,
+                    param_count: num_params,
+                    params: vec![],
+                });
             }
-            println!("FX {}: {} ({})", i, name, ident);
-            fx_infos.push(FxInfo {
-                name,
-                ident,
-                param_count: 0,
-                params: vec![],
-            });
             i += 1;
         }
         unsafe { reaper.delete_track(track) };
-        Ok(AllFxInfoArgs { fx: fxinfos })
+        Ok(AllFxInfoArgs { fx: fx_infos })
     }
 }
