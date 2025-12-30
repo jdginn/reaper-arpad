@@ -1,6 +1,7 @@
-use std::ffi::CStr;
+use std::ffi::{CStr, CString};
 use std::time::SystemTime;
 
+use crate::registries::{get_fx_ident_by_hash, hash_fx_ident};
 use crate::{
     get_track_by_guid, get_track_guid, OscRoute, Reaper, ReceiverError, RouteError,
     TrackAttributeKey,
@@ -1061,7 +1062,7 @@ pub struct ParamInfo {
 pub struct FxInfo {
     pub name: String,
     pub ident: String,
-    pub param_count: u32,
+    pub num_params: u32,
     pub params: Vec<ParamInfo>,
 }
 pub struct TrackFXInfoArgs {
@@ -1110,7 +1111,7 @@ impl OscRoute for TrackFXInfoRoute {
                 fx_info: FxInfo {
                     name: fx_name.to_string(),
                     ident: "".to_string(),
-                    param_count: reaper.track_fx_get_num_params(
+                    num_params: reaper.track_fx_get_num_params(
                         track,
                         reaper_medium::TrackFxLocation::NormalFxChain(params.fx_idx),
                     ),
@@ -1261,7 +1262,7 @@ impl OscRoute for AllFxInfoRoute {
             .iter()
             .flat_map(|fx_info| {
                 let mut messages = vec![];
-                let ident = format!("<{}>", fx_info.ident.clone());
+                let ident = hash_fx_ident(&fx_info.name);
                 // messages.push(OscPacket::Message(OscMessage {
                 //     addr: format!("/fxinfo/{}/ident", ident).to_string(),
                 //     args: vec![OscType::String(fx_info.ident.clone())],
@@ -1272,7 +1273,7 @@ impl OscRoute for AllFxInfoRoute {
                 }));
                 messages.push(OscPacket::Message(OscMessage {
                     addr: format!("/fxinfo/{}/param_count", ident).to_string(),
-                    args: vec![OscType::Int(fx_info.param_count.clone() as i32)],
+                    args: vec![OscType::Int(fx_info.num_params as i32)],
                 }));
                 for (param_idx, param) in fx_info.params.clone().into_iter().enumerate() {
                     messages.push(OscPacket::Message(OscMessage {
@@ -1296,7 +1297,6 @@ impl OscRoute for AllFxInfoRoute {
                     //     args: vec![OscType::Float(param.param_default as f32)],
                     // }));
                 }
-                // println!("This FX messages: {:?}", messages);
                 messages
             })
             .collect()
@@ -1380,7 +1380,6 @@ impl OscRoute for AllFxInfoRoute {
 
                 let ident = CStr::from_ptr(ident_ptr).to_string_lossy().into_owned();
 
-                // println!("Converted Name: {}, Ident: {}", name, ident);
                 Some((name, ident))
             }
         }
@@ -1423,7 +1422,7 @@ impl OscRoute for AllFxInfoRoute {
                             param_idx,
                             128, // Name length in bytes TODO: what size makes sense here?
                         )
-                        .unwrap_or_default();
+                        .unwrap();
                     let param_ex = reaper.track_fx_get_param_ex(
                         track,
                         reaper_medium::TrackFxLocation::NormalFxChain(fx_index),
@@ -1434,16 +1433,8 @@ impl OscRoute for AllFxInfoRoute {
                     //     reaper_medium::TrackFxLocation::NormalFxChain(fx_index),
                     //     param_idx,
                     // );
-                    // println!(
-                    //     "    Param {:?}: {:?} = {:?} / {:?} / {:?}",
-                    //     param_idx,
-                    //     param_name,
-                    //     param_ex.min_value,
-                    //     param_ex.current_value,
-                    //     param_ex.max_value
-                    // );
                     params.push(ParamInfo {
-                        param_name: "foo".to_string(), //TODO: fixme
+                        param_name: param_name.into_inner().to_string_lossy().to_string(), //TODO: fixme
                         param_value: param_ex.current_value,
                         param_min: param_ex.min_value,
                         param_max: param_ex.max_value,
@@ -1453,8 +1444,8 @@ impl OscRoute for AllFxInfoRoute {
                 fx_infos.push(FxInfo {
                     name,
                     ident,
-                    param_count: num_params,
-                    params: vec![],
+                    num_params,
+                    params,
                 });
             }
             i += 1;

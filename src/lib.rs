@@ -22,6 +22,8 @@ use std::thread;
 mod utils;
 use utils::{get_track_by_guid, get_track_guid, get_track_idx};
 
+mod registries;
+
 mod osc_routes;
 use osc_routes::*;
 
