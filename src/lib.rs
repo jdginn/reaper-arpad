@@ -24,8 +24,11 @@ use utils::{get_track_by_guid, get_track_guid, get_track_idx};
 
 mod registries;
 
-mod osc_routes;
-use osc_routes::*;
+mod track_routes;
+use track_routes::*;
+
+mod fx_routes;
+use fx_routes::*;
 
 mod polling;
 use polling::*;
@@ -201,7 +204,7 @@ impl ControlSurface for ArpadSurface {
     }
     // This is also called when track color changes!
     fn set_track_title(&self, args: reaper_medium::SetTrackTitleArgs) {
-        osc_routes::TrackNameRoute::build_packets(
+        TrackNameRoute::build_packets(
             TrackNameArgs {
                 track: args.track,
                 name: args.name.to_string(),
@@ -217,7 +220,7 @@ impl ControlSurface for ArpadSurface {
                 .get_set_media_track_info_get_custom_color(args.track)
                 .color
         };
-        osc_routes::TrackColorRoute::build_packets(
+        TrackColorRoute::build_packets(
             TrackColorArgs {
                 track: args.track,
                 color: color.to_raw(),
@@ -230,21 +233,21 @@ impl ControlSurface for ArpadSurface {
         });
     }
     fn set_surface_volume(&self, args: reaper_medium::SetSurfaceVolumeArgs) {
-        osc_routes::TrackVolumeRoute::build_packets(args, &self.reaper)
+        TrackVolumeRoute::build_packets(args, &self.reaper)
             .into_iter()
             .for_each(|packet| {
                 self.osc_sender.send(packet).unwrap();
             });
     }
     fn set_surface_pan(&self, args: reaper_medium::SetSurfacePanArgs) {
-        osc_routes::TrackPanRoute::build_packets(args, &self.reaper)
+        TrackPanRoute::build_packets(args, &self.reaper)
             .into_iter()
             .for_each(|packet| {
                 self.osc_sender.send(packet).unwrap();
             });
     }
     fn set_surface_mute(&self, args: reaper_medium::SetSurfaceMuteArgs) {
-        osc_routes::TrackMuteRoute::build_packets(args, &self.reaper)
+        TrackMuteRoute::build_packets(args, &self.reaper)
             .into_iter()
             .for_each(|packet| {
                 self.osc_sender.send(packet).unwrap();

@@ -6,7 +6,7 @@ use reaper_medium::Reaper;
 use crossbeam_channel::Sender;
 use rosc::OscPacket;
 
-use crate::osc_routes::{self};
+use crate::track_routes::{self};
 use crate::utils::get_track_guid;
 use crate::OscRoute;
 
@@ -81,8 +81,8 @@ impl PollSource for TrackColorPollSource {
             if let Some(prev_color) = self.prev_colors.get(&guid) {
                 if *prev_color != color {
                     self.prev_colors.insert(guid.clone(), color);
-                    osc_routes::TrackColorRoute::build_packets(
-                        osc_routes::TrackColorArgs {
+                    track_routes::TrackColorRoute::build_packets(
+                        track_routes::TrackColorArgs {
                             track,
                             color: color.to_raw(),
                         },
@@ -98,8 +98,8 @@ impl PollSource for TrackColorPollSource {
                 }
             } else {
                 self.prev_colors.insert(guid.clone(), color);
-                osc_routes::TrackColorRoute::build_packets(
-                    osc_routes::TrackColorArgs {
+                track_routes::TrackColorRoute::build_packets(
+                    track_routes::TrackColorArgs {
                         track,
                         color: color.to_raw(),
                     },
