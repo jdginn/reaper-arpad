@@ -3,7 +3,7 @@ use serde::Serialize;
 use serde_yaml;
 use std::fs;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq)]
 struct OscDoc {
     osc_address: String,
     params: Vec<OscArgOrParam>,
@@ -13,7 +13,7 @@ struct OscDoc {
     comments: Vec<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq)]
 struct OscArgOrParam {
     name: String,
     r#type: String,
@@ -50,6 +50,97 @@ const YAML_HEADER: &str = r#"
 #   Parameters are still required in the address when querying (whenever the route includes placeholders).
 #   NOTE: queryable implies readable.
 "#;
+
+/// Parse OSC documentation from source code
+fn parse_osc_docs(src: &str) -> Vec<OscDoc> {
+    let re = Regex::new(r"(?s)/// ?@osc-doc\n(.*?)(?:pub struct [^\n]*|fn \w+[^\n]*\{)").unwrap();
+    let mut docs = Vec::new();
+
+    let osc_re = Regex::new(r"^.*///\s*OSC Address:\s*(.*)$").unwrap();
+    let item_re = Regex::new(r"^.*///\s*-\s*(\w+)\s*\((\w+)\):\s*(.*)$").unwrap();
+    let section_re = Regex::new(r"^.*///\s*-\s*(params|args):\s*$").unwrap();
+
+    for cap in re.captures_iter(src) {
+        let docblock = &cap[1];
+
+        let mut comments = Vec::new();
+        let mut osc_address = None;
+        let mut params = Vec::new();
+        let mut arguments = Vec::new();
+        let mut access_tags = Vec::new();
+
+        let mut current_section = None;
+        let mut seen_address = false;
+
+        for line in docblock.lines() {
+            let trimmed = line.trim_start_matches("///").trim();
+            
+            // Check for access tags
+            if line.contains("@readable") {
+                access_tags.push("readable".to_string());
+                continue;
+            }
+            if line.contains("@writeable") {
+                access_tags.push("writeable".to_string());
+                continue;
+            }
+            if line.contains("@queryable") {
+                access_tags.push("queryable".to_string());
+                continue;
+            }
+
+            // Check for OSC Address
+            if osc_re.is_match(line) {
+                osc_address = Some(osc_re.captures(line).unwrap()[1].to_string());
+                seen_address = true;
+                continue;
+            }
+
+            // Check for section markers (params: or args:)
+            if let Some(section_cap) = section_re.captures(line) {
+                current_section = Some(section_cap[1].to_string());
+                continue;
+            }
+
+            // Check for item lines (parameters or arguments)
+            if let Some(item_cap) = item_re.captures(line) {
+                let item = OscArgOrParam {
+                    name: item_cap[1].to_string(),
+                    r#type: item_cap[2].to_string(),
+                    description: item_cap[3].to_string(),
+                };
+                
+                match current_section.as_deref() {
+                    Some("params") => params.push(item),
+                    Some("args") => arguments.push(item),
+                    None => {
+                        // Legacy format: items before sections
+                        // These should be treated as arguments for backwards compatibility
+                        arguments.push(item);
+                    }
+                    _ => {}
+                }
+                continue;
+            }
+
+            // If we haven't matched anything else and we're not in a section, 
+            // and it's not empty and we haven't seen the address yet, it's a comment
+            if current_section.is_none() && !seen_address && !trimmed.is_empty() {
+                comments.push(trimmed.to_string());
+            }
+        }
+
+        docs.push(OscDoc {
+            osc_address: osc_address.unwrap_or_default(),
+            params,
+            arguments,
+            access_tags,
+            comments,
+        });
+    }
+
+    docs
+}
 
 /// Tool to extract OSC documentation from Rust source code and output as YAML.
 ///
@@ -130,66 +221,333 @@ const YAML_HEADER: &str = r#"
 ///   - writeable
 ///   - queryable
 fn main() {
-    let src = fs::read_to_string("src/osc_routes.rs").expect("No src/lib.rs found");
-    let re = Regex::new(r"(?s)/// ?@osc-doc\n(.*?)(?:fn (\w+)[^\n]*\{)").unwrap();
+    let src = fs::read_to_string("src/osc_routes.rs").expect("No src/osc_routes.rs found");
+    let docs = parse_osc_docs(&src);
 
-    let mut docs = Vec::new();
+    // Output header + yaml
+    let yaml = serde_yaml::to_string(&docs).unwrap();
+    let output = format!("{}\n{}", YAML_HEADER, yaml);
+    fs::write("osc_docs.yaml", output).unwrap();
+}
 
-    let osc_re = Regex::new(r"^.*///\s*OSC Address:\s*(.*)$").unwrap();
-    let arg_re = Regex::new(r"^.*///\s*-\s*(\w+)\s*\((\w+)\):\s*(.*)$").unwrap();
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    for cap in re.captures_iter(&src) {
-        let docblock = &cap[1];
-
-        let mut comments = Vec::new();
-        let mut osc_address = None;
-        let mut arguments = Vec::new();
-
-        let mut in_osc_section = false;
-
-        let mut direction = None;
-
-        for line in docblock.lines() {
-            if line.contains("@readonly") {
-                direction = Some("readonly".to_string());
-                continue;
-            }
-            if line.contains("@writeonly") {
-                direction = Some("writeonly".to_string());
-                continue;
-            }
-
-            if osc_re.is_match(line) {
-                osc_address = Some(osc_re.captures(line).unwrap()[1].to_string());
-                in_osc_section = true;
-                continue;
-            }
-            if in_osc_section {
-                if let Some(arg_cap) = arg_re.captures(line) {
-                    arguments.push(OscArgOrParam {
-                        name: arg_cap[1].to_string(),
-                        r#type: arg_cap[2].to_string(),
-                        description: arg_cap[3].to_string(),
-                    });
-                }
-            } else {
-                // Collect as comment (strip leading /// and whitespace)
-                comments.push(line.trim_start_matches("///").trim().to_string());
-            }
-        }
-
-        docs.push(OscDoc {
-            osc_address: osc_address.unwrap_or_default(),
-            arguments,
-            direction,
-            comments: comments.into_iter().filter(|c| !c.is_empty()).collect(),
-        });
+    #[test]
+    fn test_minimal_example() {
+        let src = r#"
+/// @osc-doc
+/// This function does something important.
+/// OSC Address: /example/address
+/// - args:
+///    - value (int): The first argument.
+pub struct ExampleRoute;
+"#;
+        let docs = parse_osc_docs(src);
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].osc_address, "/example/address");
+        assert_eq!(docs[0].params.len(), 0);
+        assert_eq!(docs[0].arguments.len(), 1);
+        assert_eq!(docs[0].arguments[0].name, "value");
+        assert_eq!(docs[0].arguments[0].r#type, "int");
+        assert_eq!(docs[0].arguments[0].description, "The first argument.");
+        assert_eq!(docs[0].access_tags.len(), 0);
+        assert_eq!(docs[0].comments.len(), 1);
+        assert_eq!(docs[0].comments[0], "This function does something important.");
     }
 
-    // Output header
-    fs::write("osc_docs.yaml", YAML_HEADER).unwrap();
+    #[test]
+    fn test_full_example_with_params_and_args() {
+        let src = r#"
+/// @osc-doc
+/// @writeable
+/// @readable
+/// @queryable
+/// Sets the value of a track FX parameter.
+/// OSC Address: /track/{track_guid}/fx/{fx_index}/param/{param_index}/value
+/// - params:
+///    - track_guid (string): The GUID of the track.
+///    - fx_index (int): The index of the FX on the track.
+///    - param_index (int): The index of the parameter on the FX.
+/// - args:
+///    - value (float): The value of the parameter
+pub struct TrackFxParamRoute;
+"#;
+        let docs = parse_osc_docs(src);
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].osc_address, "/track/{track_guid}/fx/{fx_index}/param/{param_index}/value");
+        
+        // Check params
+        assert_eq!(docs[0].params.len(), 3);
+        assert_eq!(docs[0].params[0].name, "track_guid");
+        assert_eq!(docs[0].params[0].r#type, "string");
+        assert_eq!(docs[0].params[0].description, "The GUID of the track.");
+        assert_eq!(docs[0].params[1].name, "fx_index");
+        assert_eq!(docs[0].params[1].r#type, "int");
+        assert_eq!(docs[0].params[2].name, "param_index");
+        
+        // Check args
+        assert_eq!(docs[0].arguments.len(), 1);
+        assert_eq!(docs[0].arguments[0].name, "value");
+        assert_eq!(docs[0].arguments[0].r#type, "float");
+        assert_eq!(docs[0].arguments[0].description, "The value of the parameter");
+        
+        // Check access tags
+        assert_eq!(docs[0].access_tags.len(), 3);
+        assert!(docs[0].access_tags.contains(&"writeable".to_string()));
+        assert!(docs[0].access_tags.contains(&"readable".to_string()));
+        assert!(docs[0].access_tags.contains(&"queryable".to_string()));
+        
+        // Check comments
+        assert_eq!(docs[0].comments.len(), 1);
+        assert_eq!(docs[0].comments[0], "Sets the value of a track FX parameter.");
+    }
 
-    // Output yaml
-    let yaml = serde_yaml::to_string(&docs).unwrap();
-    fs::write("osc_docs.yaml", yaml).unwrap();
+    #[test]
+    fn test_readable_only() {
+        let src = r#"
+/// @osc-doc
+/// @readable
+/// Sends track index information.
+/// OSC Address: /track/{track_guid}/index
+/// - params:
+///    - track_guid (string): unique identifier for the track
+/// - args:
+///    - index (int): index of the track in the project
+pub struct TrackIndexRoute;
+"#;
+        let docs = parse_osc_docs(src);
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].access_tags.len(), 1);
+        assert_eq!(docs[0].access_tags[0], "readable");
+        assert_eq!(docs[0].params.len(), 1);
+        assert_eq!(docs[0].arguments.len(), 1);
+    }
+
+    #[test]
+    fn test_writeable_only() {
+        let src = r#"
+/// @osc-doc
+/// @writeable
+/// Sets track volume.
+/// OSC Address: /track/{track_guid}/volume
+/// - params:
+///    - track_guid (string): unique identifier for the track
+/// - args:
+///    - volume (float): volume of the track
+pub struct TrackVolumeRoute;
+"#;
+        let docs = parse_osc_docs(src);
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].access_tags.len(), 1);
+        assert_eq!(docs[0].access_tags[0], "writeable");
+    }
+
+    #[test]
+    fn test_queryable_implies_readable() {
+        let src = r#"
+/// @osc-doc
+/// @queryable
+/// Query track name.
+/// OSC Address: /track/{track_guid}/name
+/// - params:
+///    - track_guid (string): unique identifier for the track
+/// - args:
+///    - name (string): name of the track
+pub struct TrackNameRoute;
+"#;
+        let docs = parse_osc_docs(src);
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].access_tags.len(), 1);
+        assert_eq!(docs[0].access_tags[0], "queryable");
+        // Note: The code doesn't automatically add "readable" when "queryable" is present.
+        // The documentation states that queryable implies readable, but this is semantic, not syntactic.
+    }
+
+    #[test]
+    fn test_multiple_params_and_args() {
+        let src = r#"
+/// @osc-doc
+/// @readable
+/// @writeable
+/// Test with multiple params and args.
+/// OSC Address: /test/{p1}/{p2}/{p3}
+/// - params:
+///    - p1 (int): first param
+///    - p2 (string): second param
+///    - p3 (int): third param
+/// - args:
+///    - arg1 (float): first argument
+///    - arg2 (bool): second argument
+///    - arg3 (string): third argument
+pub struct TestRoute;
+"#;
+        let docs = parse_osc_docs(src);
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].params.len(), 3);
+        assert_eq!(docs[0].arguments.len(), 3);
+        assert_eq!(docs[0].params[0].name, "p1");
+        assert_eq!(docs[0].params[1].name, "p2");
+        assert_eq!(docs[0].params[2].name, "p3");
+        assert_eq!(docs[0].arguments[0].name, "arg1");
+        assert_eq!(docs[0].arguments[1].name, "arg2");
+        assert_eq!(docs[0].arguments[2].name, "arg3");
+    }
+
+    #[test]
+    fn test_no_params_only_args() {
+        let src = r#"
+/// @osc-doc
+/// @readable
+/// Simple route with no params.
+/// OSC Address: /simple/route
+/// - args:
+///    - value (int): a simple value
+pub struct SimpleRoute;
+"#;
+        let docs = parse_osc_docs(src);
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].params.len(), 0);
+        assert_eq!(docs[0].arguments.len(), 1);
+    }
+
+    #[test]
+    fn test_params_only_no_args() {
+        let src = r#"
+/// @osc-doc
+/// @readable
+/// Route with params but no args.
+/// OSC Address: /route/{id}
+/// - params:
+///    - id (string): identifier
+pub struct RouteWithParamsOnly;
+"#;
+        let docs = parse_osc_docs(src);
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].params.len(), 1);
+        assert_eq!(docs[0].arguments.len(), 0);
+    }
+
+    #[test]
+    fn test_no_access_tags() {
+        let src = r#"
+/// @osc-doc
+/// Route with no access tags.
+/// OSC Address: /no/tags
+/// - args:
+///    - value (int): a value
+pub struct NoTagsRoute;
+"#;
+        let docs = parse_osc_docs(src);
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].access_tags.len(), 0);
+    }
+
+    #[test]
+    fn test_multiple_comment_lines() {
+        let src = r#"
+/// @osc-doc
+/// @readable
+/// This is the first comment line.
+/// This is the second comment line.
+/// And a third one.
+/// OSC Address: /multi/comment
+/// - args:
+///    - value (int): a value
+pub struct MultiCommentRoute;
+"#;
+        let docs = parse_osc_docs(src);
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].comments.len(), 3);
+        assert_eq!(docs[0].comments[0], "This is the first comment line.");
+        assert_eq!(docs[0].comments[1], "This is the second comment line.");
+        assert_eq!(docs[0].comments[2], "And a third one.");
+    }
+
+    #[test]
+    fn test_multiple_routes() {
+        let src = r#"
+/// @osc-doc
+/// @readable
+/// First route.
+/// OSC Address: /route/one
+/// - args:
+///    - value (int): first value
+pub struct RouteOne;
+
+/// @osc-doc
+/// @writeable
+/// Second route.
+/// OSC Address: /route/two
+/// - args:
+///    - value (string): second value
+pub struct RouteTwo;
+"#;
+        let docs = parse_osc_docs(src);
+        assert_eq!(docs.len(), 2);
+        assert_eq!(docs[0].osc_address, "/route/one");
+        assert_eq!(docs[1].osc_address, "/route/two");
+        assert_eq!(docs[0].access_tags[0], "readable");
+        assert_eq!(docs[1].access_tags[0], "writeable");
+    }
+
+    #[test]
+    fn test_all_supported_types() {
+        let src = r#"
+/// @osc-doc
+/// Test all supported types.
+/// OSC Address: /types/test
+/// - params:
+///    - int_param (int): integer parameter
+///    - string_param (string): string parameter
+/// - args:
+///    - int_arg (int): integer argument
+///    - float_arg (float): float argument
+///    - string_arg (string): string argument
+///    - bool_arg (bool): boolean argument
+pub struct TypesRoute;
+"#;
+        let docs = parse_osc_docs(src);
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].params.len(), 2);
+        assert_eq!(docs[0].arguments.len(), 4);
+        assert_eq!(docs[0].params[0].r#type, "int");
+        assert_eq!(docs[0].params[1].r#type, "string");
+        assert_eq!(docs[0].arguments[0].r#type, "int");
+        assert_eq!(docs[0].arguments[1].r#type, "float");
+        assert_eq!(docs[0].arguments[2].r#type, "string");
+        assert_eq!(docs[0].arguments[3].r#type, "bool");
+    }
+
+    #[test]
+    fn test_empty_comments() {
+        let src = r#"
+/// @osc-doc
+/// @readable
+/// OSC Address: /no/comment
+/// - args:
+///    - value (int): a value
+pub struct NoCommentRoute;
+"#;
+        let docs = parse_osc_docs(src);
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].comments.len(), 0);
+    }
+
+    #[test]
+    fn test_fn_instead_of_struct() {
+        let src = r#"
+/// @osc-doc
+/// @readable
+/// Function-based route.
+/// OSC Address: /fn/route
+/// - args:
+///    - value (int): a value
+fn handle_route() {
+"#;
+        let docs = parse_osc_docs(src);
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].osc_address, "/fn/route");
+    }
 }
