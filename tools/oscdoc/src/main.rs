@@ -135,17 +135,15 @@ const YAML_HEADER: &str = r#"
 ///   - readable
 ///   - writeable
 ///   - queryable
-fn main() {
-    let src = fs::read_to_string("src/osc_routes.rs").expect("No src/lib.rs found");
+fn parse_doc_block(input: &str) -> Vec<OscDoc> {
     let re = Regex::new(r"(?s)/// ?@osc-doc\n(.*?)(?:fn (\w+)[^\n]*\{)").unwrap();
-
-    let mut docs = Vec::new();
-
     let osc_re = Regex::new(r"^.*///\s*OSC Address:\s*(.*)$").unwrap();
     let arg_re = Regex::new(r"^.*///\s*-\s*(\w+)\s*\((\w+)\):\s*(.*)$").unwrap();
     let section_re = Regex::new(r"^.*///\s*-\s*(params|args):\s*$").unwrap();
 
-    for cap in re.captures_iter(&src) {
+    let mut docs = Vec::new();
+
+    for cap in re.captures_iter(input) {
         let docblock = &cap[1];
 
         let mut comments = Vec::new();
@@ -155,10 +153,9 @@ fn main() {
         let mut access_tags = Vec::new();
 
         let mut in_osc_section = false;
-        let mut current_section = None; // Track whether we're in "params" or "args"
+        let mut current_section = None;
 
         for line in docblock.lines() {
-            // Check for access tags
             if line.contains("@readable") {
                 access_tags.push("readable".to_string());
                 continue;
@@ -177,31 +174,28 @@ fn main() {
                 in_osc_section = true;
                 continue;
             }
-            
+
             if in_osc_section {
-                // Check if we're entering a params or args section
                 if let Some(section_cap) = section_re.captures(line) {
                     current_section = Some(section_cap[1].to_string());
                     continue;
                 }
-                
-                // Parse argument/parameter entries
+
                 if let Some(arg_cap) = arg_re.captures(line) {
                     let entry = OscArgOrParam {
                         name: arg_cap[1].to_string(),
                         r#type: arg_cap[2].to_string(),
                         description: arg_cap[3].to_string(),
                     };
-                    
+
                     match current_section.as_deref() {
                         Some("params") => params.push(entry),
                         Some("args") => arguments.push(entry),
-                        None => arguments.push(entry), // Default to arguments for backwards compatibility
-                        _ => arguments.push(entry), // Catch-all for any other section names
+                        None => arguments.push(entry),
+                        _ => arguments.push(entry),
                     }
                 }
             } else {
-                // Collect as comment (strip leading /// and whitespace)
                 let cleaned = line.trim_start_matches("///").trim().to_string();
                 if !cleaned.is_empty() {
                     comments.push(cleaned);
@@ -218,6 +212,12 @@ fn main() {
         });
     }
 
+    docs
+}
+fn main() {
+    let src = fs::read_to_string("src/osc_routes.rs").expect("No src/lib.rs found");
+    let docs = parse_doc_block(&src);
+
     // Output header and yaml
     let yaml = serde_yaml::to_string(&docs).unwrap();
     let output = format!("{}\n{}", YAML_HEADER.trim(), yaml);
@@ -227,87 +227,6 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// Helper function to parse a doc block
-    fn parse_doc_block(input: &str) -> Vec<OscDoc> {
-        let re = Regex::new(r"(?s)/// ?@osc-doc\n(.*?)(?:fn (\w+)[^\n]*\{)").unwrap();
-        let osc_re = Regex::new(r"^.*///\s*OSC Address:\s*(.*)$").unwrap();
-        let arg_re = Regex::new(r"^.*///\s*-\s*(\w+)\s*\((\w+)\):\s*(.*)$").unwrap();
-        let section_re = Regex::new(r"^.*///\s*-\s*(params|args):\s*$").unwrap();
-        
-        let mut docs = Vec::new();
-
-        for cap in re.captures_iter(input) {
-            let docblock = &cap[1];
-
-            let mut comments = Vec::new();
-            let mut osc_address = None;
-            let mut params = Vec::new();
-            let mut arguments = Vec::new();
-            let mut access_tags = Vec::new();
-
-            let mut in_osc_section = false;
-            let mut current_section = None;
-
-            for line in docblock.lines() {
-                if line.contains("@readable") {
-                    access_tags.push("readable".to_string());
-                    continue;
-                }
-                if line.contains("@writeable") {
-                    access_tags.push("writeable".to_string());
-                    continue;
-                }
-                if line.contains("@queryable") {
-                    access_tags.push("queryable".to_string());
-                    continue;
-                }
-
-                if osc_re.is_match(line) {
-                    osc_address = Some(osc_re.captures(line).unwrap()[1].to_string());
-                    in_osc_section = true;
-                    continue;
-                }
-                
-                if in_osc_section {
-                    if let Some(section_cap) = section_re.captures(line) {
-                        current_section = Some(section_cap[1].to_string());
-                        continue;
-                    }
-                    
-                    if let Some(arg_cap) = arg_re.captures(line) {
-                        let entry = OscArgOrParam {
-                            name: arg_cap[1].to_string(),
-                            r#type: arg_cap[2].to_string(),
-                            description: arg_cap[3].to_string(),
-                        };
-                        
-                        match current_section.as_deref() {
-                            Some("params") => params.push(entry),
-                            Some("args") => arguments.push(entry),
-                            None => arguments.push(entry),
-                            _ => arguments.push(entry),
-                        }
-                    }
-                } else {
-                    let cleaned = line.trim_start_matches("///").trim().to_string();
-                    if !cleaned.is_empty() {
-                        comments.push(cleaned);
-                    }
-                }
-            }
-
-            docs.push(OscDoc {
-                osc_address: osc_address.unwrap_or_default(),
-                params,
-                arguments,
-                access_tags,
-                comments,
-            });
-        }
-
-        docs
-    }
 
     #[test]
     fn test_minimal_doc() {
@@ -322,7 +241,10 @@ fn example_function() {
         let docs = parse_doc_block(input);
         assert_eq!(docs.len(), 1);
         assert_eq!(docs[0].osc_address, "/example/address");
-        assert_eq!(docs[0].comments, vec!["This function does something important."]);
+        assert_eq!(
+            docs[0].comments,
+            vec!["This function does something important."]
+        );
         assert_eq!(docs[0].arguments.len(), 1);
         assert_eq!(docs[0].arguments[0].name, "arg");
         assert_eq!(docs[0].arguments[0].r#type, "int");
@@ -397,7 +319,10 @@ fn full_access() {
 "#;
         let docs = parse_doc_block(input);
         assert_eq!(docs.len(), 1);
-        assert_eq!(docs[0].access_tags, vec!["readable", "writeable", "queryable"]);
+        assert_eq!(
+            docs[0].access_tags,
+            vec!["readable", "writeable", "queryable"]
+        );
     }
 
     #[test]
@@ -419,7 +344,10 @@ fn set_fx_param() {
 "#;
         let docs = parse_doc_block(input);
         assert_eq!(docs.len(), 1);
-        assert_eq!(docs[0].osc_address, "/track/{track_guid}/fx/{fx_index}/param/{param_index}/value");
+        assert_eq!(
+            docs[0].osc_address,
+            "/track/{track_guid}/fx/{fx_index}/param/{param_index}/value"
+        );
         assert_eq!(docs[0].params.len(), 3);
         assert_eq!(docs[0].params[0].name, "track_guid");
         assert_eq!(docs[0].params[0].r#type, "string");
@@ -430,7 +358,10 @@ fn set_fx_param() {
         assert_eq!(docs[0].arguments.len(), 1);
         assert_eq!(docs[0].arguments[0].name, "value");
         assert_eq!(docs[0].arguments[0].r#type, "float");
-        assert_eq!(docs[0].access_tags, vec!["writeable", "readable", "queryable"]);
+        assert_eq!(
+            docs[0].access_tags,
+            vec!["writeable", "readable", "queryable"]
+        );
     }
 
     #[test]
@@ -590,20 +521,16 @@ fn old_style() {
     fn test_yaml_serialization() {
         let doc = OscDoc {
             osc_address: "/test/address".to_string(),
-            params: vec![
-                OscArgOrParam {
-                    name: "param1".to_string(),
-                    r#type: "int".to_string(),
-                    description: "First param".to_string(),
-                },
-            ],
-            arguments: vec![
-                OscArgOrParam {
-                    name: "arg1".to_string(),
-                    r#type: "float".to_string(),
-                    description: "First arg".to_string(),
-                },
-            ],
+            params: vec![OscArgOrParam {
+                name: "param1".to_string(),
+                r#type: "int".to_string(),
+                description: "First param".to_string(),
+            }],
+            arguments: vec![OscArgOrParam {
+                name: "arg1".to_string(),
+                r#type: "float".to_string(),
+                description: "First arg".to_string(),
+            }],
             access_tags: vec!["readable".to_string(), "writeable".to_string()],
             comments: vec!["Test comment".to_string()],
         };
