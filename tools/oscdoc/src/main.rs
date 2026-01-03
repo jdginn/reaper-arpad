@@ -143,25 +143,32 @@ fn main() {
 
     let osc_re = Regex::new(r"^.*///\s*OSC Address:\s*(.*)$").unwrap();
     let arg_re = Regex::new(r"^.*///\s*-\s*(\w+)\s*\((\w+)\):\s*(.*)$").unwrap();
+    let section_re = Regex::new(r"^.*///\s*-\s*(params|args):\s*$").unwrap();
 
     for cap in re.captures_iter(&src) {
         let docblock = &cap[1];
 
         let mut comments = Vec::new();
         let mut osc_address = None;
+        let mut params = Vec::new();
         let mut arguments = Vec::new();
+        let mut access_tags = Vec::new();
 
         let mut in_osc_section = false;
-
-        let mut direction = None;
+        let mut current_section = None; // Track whether we're in "params" or "args"
 
         for line in docblock.lines() {
-            if line.contains("@readonly") {
-                direction = Some("readonly".to_string());
+            // Check for access tags
+            if line.contains("@readable") {
+                access_tags.push("readable".to_string());
                 continue;
             }
-            if line.contains("@writeonly") {
-                direction = Some("writeonly".to_string());
+            if line.contains("@writeable") {
+                access_tags.push("writeable".to_string());
+                continue;
+            }
+            if line.contains("@queryable") {
+                access_tags.push("queryable".to_string());
                 continue;
             }
 
@@ -170,32 +177,459 @@ fn main() {
                 in_osc_section = true;
                 continue;
             }
+            
             if in_osc_section {
+                // Check if we're entering a params or args section
+                if let Some(section_cap) = section_re.captures(line) {
+                    current_section = Some(section_cap[1].to_string());
+                    continue;
+                }
+                
+                // Parse argument/parameter entries
                 if let Some(arg_cap) = arg_re.captures(line) {
-                    arguments.push(OscArgOrParam {
+                    let entry = OscArgOrParam {
                         name: arg_cap[1].to_string(),
                         r#type: arg_cap[2].to_string(),
                         description: arg_cap[3].to_string(),
-                    });
+                    };
+                    
+                    match current_section.as_deref() {
+                        Some("params") => params.push(entry),
+                        Some("args") => arguments.push(entry),
+                        None => arguments.push(entry), // Default to arguments for backwards compatibility
+                        _ => arguments.push(entry), // Catch-all for any other section names
+                    }
                 }
             } else {
                 // Collect as comment (strip leading /// and whitespace)
-                comments.push(line.trim_start_matches("///").trim().to_string());
+                let cleaned = line.trim_start_matches("///").trim().to_string();
+                if !cleaned.is_empty() {
+                    comments.push(cleaned);
+                }
             }
         }
 
         docs.push(OscDoc {
             osc_address: osc_address.unwrap_or_default(),
+            params,
             arguments,
-            direction,
-            comments: comments.into_iter().filter(|c| !c.is_empty()).collect(),
+            access_tags,
+            comments,
         });
     }
 
-    // Output header
-    fs::write("osc_docs.yaml", YAML_HEADER).unwrap();
-
-    // Output yaml
+    // Output header and yaml
     let yaml = serde_yaml::to_string(&docs).unwrap();
-    fs::write("osc_docs.yaml", yaml).unwrap();
+    let output = format!("{}\n{}", YAML_HEADER.trim(), yaml);
+    fs::write("osc_docs.yaml", output).unwrap();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Helper function to parse a doc block
+    fn parse_doc_block(input: &str) -> Vec<OscDoc> {
+        let re = Regex::new(r"(?s)/// ?@osc-doc\n(.*?)(?:fn (\w+)[^\n]*\{)").unwrap();
+        let osc_re = Regex::new(r"^.*///\s*OSC Address:\s*(.*)$").unwrap();
+        let arg_re = Regex::new(r"^.*///\s*-\s*(\w+)\s*\((\w+)\):\s*(.*)$").unwrap();
+        let section_re = Regex::new(r"^.*///\s*-\s*(params|args):\s*$").unwrap();
+        
+        let mut docs = Vec::new();
+
+        for cap in re.captures_iter(input) {
+            let docblock = &cap[1];
+
+            let mut comments = Vec::new();
+            let mut osc_address = None;
+            let mut params = Vec::new();
+            let mut arguments = Vec::new();
+            let mut access_tags = Vec::new();
+
+            let mut in_osc_section = false;
+            let mut current_section = None;
+
+            for line in docblock.lines() {
+                if line.contains("@readable") {
+                    access_tags.push("readable".to_string());
+                    continue;
+                }
+                if line.contains("@writeable") {
+                    access_tags.push("writeable".to_string());
+                    continue;
+                }
+                if line.contains("@queryable") {
+                    access_tags.push("queryable".to_string());
+                    continue;
+                }
+
+                if osc_re.is_match(line) {
+                    osc_address = Some(osc_re.captures(line).unwrap()[1].to_string());
+                    in_osc_section = true;
+                    continue;
+                }
+                
+                if in_osc_section {
+                    if let Some(section_cap) = section_re.captures(line) {
+                        current_section = Some(section_cap[1].to_string());
+                        continue;
+                    }
+                    
+                    if let Some(arg_cap) = arg_re.captures(line) {
+                        let entry = OscArgOrParam {
+                            name: arg_cap[1].to_string(),
+                            r#type: arg_cap[2].to_string(),
+                            description: arg_cap[3].to_string(),
+                        };
+                        
+                        match current_section.as_deref() {
+                            Some("params") => params.push(entry),
+                            Some("args") => arguments.push(entry),
+                            None => arguments.push(entry),
+                            _ => arguments.push(entry),
+                        }
+                    }
+                } else {
+                    let cleaned = line.trim_start_matches("///").trim().to_string();
+                    if !cleaned.is_empty() {
+                        comments.push(cleaned);
+                    }
+                }
+            }
+
+            docs.push(OscDoc {
+                osc_address: osc_address.unwrap_or_default(),
+                params,
+                arguments,
+                access_tags,
+                comments,
+            });
+        }
+
+        docs
+    }
+
+    #[test]
+    fn test_minimal_doc() {
+        let input = r#"
+/// @osc-doc
+/// This function does something important.
+/// OSC Address: /example/address
+/// - args:
+///   - arg (int): The first argument.
+fn example_function() {
+"#;
+        let docs = parse_doc_block(input);
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].osc_address, "/example/address");
+        assert_eq!(docs[0].comments, vec!["This function does something important."]);
+        assert_eq!(docs[0].arguments.len(), 1);
+        assert_eq!(docs[0].arguments[0].name, "arg");
+        assert_eq!(docs[0].arguments[0].r#type, "int");
+        assert_eq!(docs[0].arguments[0].description, "The first argument.");
+        assert_eq!(docs[0].params.len(), 0);
+        assert_eq!(docs[0].access_tags.len(), 0);
+    }
+
+    #[test]
+    fn test_with_readable_tag() {
+        let input = r#"
+/// @osc-doc
+/// @readable
+/// Sends data from the application.
+/// OSC Address: /output/data
+/// - args:
+///   - value (float): The data value.
+fn send_data() {
+"#;
+        let docs = parse_doc_block(input);
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].osc_address, "/output/data");
+        assert_eq!(docs[0].access_tags, vec!["readable"]);
+        assert_eq!(docs[0].comments, vec!["Sends data from the application."]);
+    }
+
+    #[test]
+    fn test_with_writeable_tag() {
+        let input = r#"
+/// @osc-doc
+/// @writeable
+/// Accepts input to the application.
+/// OSC Address: /input/data
+/// - args:
+///   - value (float): The input value.
+fn receive_data() {
+"#;
+        let docs = parse_doc_block(input);
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].access_tags, vec!["writeable"]);
+    }
+
+    #[test]
+    fn test_with_queryable_tag() {
+        let input = r#"
+/// @osc-doc
+/// @queryable
+/// @readable
+/// Supports querying for current value.
+/// OSC Address: /query/value
+/// - args:
+///   - current (int): The current value.
+fn queryable_route() {
+"#;
+        let docs = parse_doc_block(input);
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].access_tags, vec!["queryable", "readable"]);
+    }
+
+    #[test]
+    fn test_with_all_access_tags() {
+        let input = r#"
+/// @osc-doc
+/// @readable
+/// @writeable
+/// @queryable
+/// Route with all access modes.
+/// OSC Address: /full/access
+/// - args:
+///   - value (float): The value.
+fn full_access() {
+"#;
+        let docs = parse_doc_block(input);
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].access_tags, vec!["readable", "writeable", "queryable"]);
+    }
+
+    #[test]
+    fn test_with_params_and_args() {
+        let input = r#"
+/// @osc-doc
+/// @writeable
+/// @readable
+/// @queryable
+/// Sets the value of a track FX parameter.
+/// OSC Address: /track/{track_guid}/fx/{fx_index}/param/{param_index}/value
+/// - params:
+///   - track_guid (string): The GUID of the track.
+///   - fx_index (int): The index of the FX on the track.
+///   - param_index (int): The index of the parameter on the FX.
+/// - args:
+///   - value (float): The value of the parameter
+fn set_fx_param() {
+"#;
+        let docs = parse_doc_block(input);
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].osc_address, "/track/{track_guid}/fx/{fx_index}/param/{param_index}/value");
+        assert_eq!(docs[0].params.len(), 3);
+        assert_eq!(docs[0].params[0].name, "track_guid");
+        assert_eq!(docs[0].params[0].r#type, "string");
+        assert_eq!(docs[0].params[1].name, "fx_index");
+        assert_eq!(docs[0].params[1].r#type, "int");
+        assert_eq!(docs[0].params[2].name, "param_index");
+        assert_eq!(docs[0].params[2].r#type, "int");
+        assert_eq!(docs[0].arguments.len(), 1);
+        assert_eq!(docs[0].arguments[0].name, "value");
+        assert_eq!(docs[0].arguments[0].r#type, "float");
+        assert_eq!(docs[0].access_tags, vec!["writeable", "readable", "queryable"]);
+    }
+
+    #[test]
+    fn test_multiple_params() {
+        let input = r#"
+/// @osc-doc
+/// @writeable
+/// Multiple parameters in address.
+/// OSC Address: /device/{device_id}/channel/{channel}/setting/{setting_name}
+/// - params:
+///   - device_id (int): Device identifier.
+///   - channel (int): Channel number.
+///   - setting_name (string): Name of the setting.
+/// - args:
+///   - value (string): The setting value.
+fn set_device_setting() {
+"#;
+        let docs = parse_doc_block(input);
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].params.len(), 3);
+        assert_eq!(docs[0].arguments.len(), 1);
+    }
+
+    #[test]
+    fn test_multiple_args() {
+        let input = r#"
+/// @osc-doc
+/// @writeable
+/// Multiple arguments.
+/// OSC Address: /complex/route
+/// - args:
+///   - x (float): X coordinate.
+///   - y (float): Y coordinate.
+///   - z (float): Z coordinate.
+fn complex_route() {
+"#;
+        let docs = parse_doc_block(input);
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].arguments.len(), 3);
+        assert_eq!(docs[0].arguments[0].name, "x");
+        assert_eq!(docs[0].arguments[1].name, "y");
+        assert_eq!(docs[0].arguments[2].name, "z");
+    }
+
+    #[test]
+    fn test_only_params_no_args() {
+        let input = r#"
+/// @osc-doc
+/// @readable
+/// Route with only parameters, no arguments.
+/// OSC Address: /track/{track_id}/name
+/// - params:
+///   - track_id (int): The track ID.
+fn get_track_name() {
+"#;
+        let docs = parse_doc_block(input);
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].params.len(), 1);
+        assert_eq!(docs[0].arguments.len(), 0);
+    }
+
+    #[test]
+    fn test_multiple_comments() {
+        let input = r#"
+/// @osc-doc
+/// @writeable
+/// This is the first comment line.
+/// This is the second comment line.
+/// And a third one for good measure.
+/// OSC Address: /multi/comment
+/// - args:
+///   - data (string): Some data.
+fn multi_comment() {
+"#;
+        let docs = parse_doc_block(input);
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].comments.len(), 3);
+        assert_eq!(docs[0].comments[0], "This is the first comment line.");
+        assert_eq!(docs[0].comments[1], "This is the second comment line.");
+        assert_eq!(docs[0].comments[2], "And a third one for good measure.");
+    }
+
+    #[test]
+    fn test_empty_comments_filtered() {
+        let input = r#"
+/// @osc-doc
+/// @readable
+///
+/// This has an empty line above.
+///
+/// OSC Address: /empty/lines
+/// - args:
+///   - value (int): A value.
+fn empty_lines() {
+"#;
+        let docs = parse_doc_block(input);
+        assert_eq!(docs.len(), 1);
+        // Empty lines should not be included in comments
+        assert_eq!(docs[0].comments, vec!["This has an empty line above."]);
+    }
+
+    #[test]
+    fn test_no_access_tags() {
+        let input = r#"
+/// @osc-doc
+/// Route without access tags.
+/// OSC Address: /no/access
+/// - args:
+///   - value (bool): A boolean value.
+fn no_access() {
+"#;
+        let docs = parse_doc_block(input);
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].access_tags.len(), 0);
+    }
+
+    #[test]
+    fn test_various_arg_types() {
+        let input = r#"
+/// @osc-doc
+/// @writeable
+/// Tests various argument types.
+/// OSC Address: /types/test
+/// - args:
+///   - int_val (int): An integer.
+///   - float_val (float): A float.
+///   - string_val (string): A string.
+///   - bool_val (bool): A boolean.
+fn type_test() {
+"#;
+        let docs = parse_doc_block(input);
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].arguments.len(), 4);
+        assert_eq!(docs[0].arguments[0].r#type, "int");
+        assert_eq!(docs[0].arguments[1].r#type, "float");
+        assert_eq!(docs[0].arguments[2].r#type, "string");
+        assert_eq!(docs[0].arguments[3].r#type, "bool");
+    }
+
+    #[test]
+    fn test_backward_compatibility_args_without_section() {
+        let input = r#"
+/// @osc-doc
+/// Old style without explicit args section.
+/// OSC Address: /old/style
+///   - value (int): A value defined without section header.
+fn old_style() {
+"#;
+        let docs = parse_doc_block(input);
+        assert_eq!(docs.len(), 1);
+        // Should default to arguments
+        assert_eq!(docs[0].arguments.len(), 1);
+        assert_eq!(docs[0].arguments[0].name, "value");
+    }
+
+    #[test]
+    fn test_yaml_serialization() {
+        let doc = OscDoc {
+            osc_address: "/test/address".to_string(),
+            params: vec![
+                OscArgOrParam {
+                    name: "param1".to_string(),
+                    r#type: "int".to_string(),
+                    description: "First param".to_string(),
+                },
+            ],
+            arguments: vec![
+                OscArgOrParam {
+                    name: "arg1".to_string(),
+                    r#type: "float".to_string(),
+                    description: "First arg".to_string(),
+                },
+            ],
+            access_tags: vec!["readable".to_string(), "writeable".to_string()],
+            comments: vec!["Test comment".to_string()],
+        };
+
+        let yaml = serde_yaml::to_string(&vec![doc]).unwrap();
+        assert!(yaml.contains("osc_address: /test/address"));
+        assert!(yaml.contains("params:"));
+        assert!(yaml.contains("arguments:"));
+        assert!(yaml.contains("access_tags:"));
+        assert!(yaml.contains("comments:"));
+        assert!(yaml.contains("- readable"));
+        assert!(yaml.contains("- writeable"));
+    }
+
+    #[test]
+    fn test_empty_comments_field_not_serialized() {
+        let doc = OscDoc {
+            osc_address: "/test".to_string(),
+            params: vec![],
+            arguments: vec![],
+            access_tags: vec![],
+            comments: vec![],
+        };
+
+        let yaml = serde_yaml::to_string(&vec![doc]).unwrap();
+        // Empty comments should not appear in YAML due to skip_serializing_if
+        assert!(!yaml.contains("comments:"));
+    }
 }
