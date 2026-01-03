@@ -135,16 +135,15 @@ const YAML_HEADER: &str = r#"
 ///   - readable
 ///   - writeable
 ///   - queryable
-fn main() {
-    let src = fs::read_to_string("src/osc_routes.rs").expect("No src/lib.rs found");
+/// Parse OSC documentation from source text
+fn parse_osc_docs(src: &str) -> Vec<OscDoc> {
     let re = Regex::new(r"(?s)/// ?@osc-doc\n(.*?)(?:fn (\w+)[^\n]*\{)").unwrap();
-
-    let mut docs = Vec::new();
-
     let osc_re = Regex::new(r"^.*///\s*OSC Address:\s*(.*)$").unwrap();
     let arg_re = Regex::new(r"^.*///\s*-\s*(\w+)\s*\((\w+)\):\s*(.*)$").unwrap();
 
-    for cap in re.captures_iter(&src) {
+    let mut docs = Vec::new();
+
+    for cap in re.captures_iter(src) {
         let docblock = &cap[1];
 
         let mut comments = Vec::new();
@@ -226,6 +225,13 @@ fn main() {
         });
     }
 
+    docs
+}
+
+fn main() {
+    let src = fs::read_to_string("src/osc_routes.rs").expect("No src/lib.rs found");
+    let docs = parse_osc_docs(&src);
+
     // Output header and yaml
     let yaml = serde_yaml::to_string(&docs).unwrap();
     let output = format!("{}\n{}", YAML_HEADER, yaml);
@@ -235,98 +241,6 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn parse_osc_doc(input: &str) -> Vec<OscDoc> {
-        let re = Regex::new(r"(?s)/// ?@osc-doc\n(.*?)(?:fn (\w+)[^\n]*\{)").unwrap();
-        let osc_re = Regex::new(r"^.*///\s*OSC Address:\s*(.*)$").unwrap();
-        let arg_re = Regex::new(r"^.*///\s*-\s*(\w+)\s*\((\w+)\):\s*(.*)$").unwrap();
-
-        let mut docs = Vec::new();
-
-        for cap in re.captures_iter(input) {
-            let docblock = &cap[1];
-
-            let mut comments = Vec::new();
-            let mut osc_address = None;
-            let mut params = Vec::new();
-            let mut arguments = Vec::new();
-            let mut access_tags = Vec::new();
-
-            let mut in_params_section = false;
-            let mut in_args_section = false;
-            let mut in_osc_section = false;
-
-            for line in docblock.lines() {
-                // Parse access tags
-                if line.contains("@readable") {
-                    access_tags.push("readable".to_string());
-                    continue;
-                }
-                if line.contains("@writeable") {
-                    access_tags.push("writeable".to_string());
-                    continue;
-                }
-                if line.contains("@queryable") {
-                    access_tags.push("queryable".to_string());
-                    continue;
-                }
-
-                // Check for OSC Address
-                if osc_re.is_match(line) {
-                    osc_address = Some(osc_re.captures(line).unwrap()[1].to_string());
-                    in_osc_section = true;
-                    continue;
-                }
-
-                // Check for params: or args: section headers
-                if line.trim_start_matches("///").trim() == "params:" {
-                    in_params_section = true;
-                    in_args_section = false;
-                    continue;
-                }
-                if line.trim_start_matches("///").trim() == "args:" {
-                    in_args_section = true;
-                    in_params_section = false;
-                    continue;
-                }
-
-                // Parse parameters or arguments
-                if in_params_section {
-                    if let Some(arg_cap) = arg_re.captures(line) {
-                        params.push(OscArgOrParam {
-                            name: arg_cap[1].to_string(),
-                            r#type: arg_cap[2].to_string(),
-                            description: arg_cap[3].to_string(),
-                        });
-                    }
-                } else if in_args_section {
-                    if let Some(arg_cap) = arg_re.captures(line) {
-                        arguments.push(OscArgOrParam {
-                            name: arg_cap[1].to_string(),
-                            r#type: arg_cap[2].to_string(),
-                            description: arg_cap[3].to_string(),
-                        });
-                    }
-                } else if !in_osc_section {
-                    // Collect as comment (strip leading /// and whitespace)
-                    let comment_text = line.trim_start_matches("///").trim().to_string();
-                    if !comment_text.is_empty() {
-                        comments.push(comment_text);
-                    }
-                }
-            }
-
-            docs.push(OscDoc {
-                osc_address: osc_address.unwrap_or_default(),
-                params,
-                arguments,
-                access_tags,
-                comments,
-            });
-        }
-
-        docs
-    }
 
     #[test]
     fn test_minimal_osc_doc() {
@@ -338,7 +252,7 @@ mod tests {
 /// - value (int): The value argument.
 fn test_function() {
 "#;
-        let docs = parse_osc_doc(input);
+        let docs = parse_osc_docs(input);
         assert_eq!(docs.len(), 1);
         assert_eq!(docs[0].osc_address, "/test/route");
         assert_eq!(docs[0].comments.len(), 1);
@@ -361,7 +275,7 @@ fn test_function() {
 /// - data (string): Some data.
 fn test_function() {
 "#;
-        let docs = parse_osc_doc(input);
+        let docs = parse_osc_docs(input);
         assert_eq!(docs.len(), 1);
         assert_eq!(docs[0].access_tags.len(), 1);
         assert_eq!(docs[0].access_tags[0], "readable");
@@ -377,7 +291,7 @@ fn test_function() {
 /// - data (float): Some data.
 fn test_function() {
 "#;
-        let docs = parse_osc_doc(input);
+        let docs = parse_osc_docs(input);
         assert_eq!(docs.len(), 1);
         assert_eq!(docs[0].access_tags.len(), 1);
         assert_eq!(docs[0].access_tags[0], "writeable");
@@ -393,7 +307,7 @@ fn test_function() {
 /// - data (bool): Some data.
 fn test_function() {
 "#;
-        let docs = parse_osc_doc(input);
+        let docs = parse_osc_docs(input);
         assert_eq!(docs.len(), 1);
         assert_eq!(docs[0].access_tags.len(), 1);
         assert_eq!(docs[0].access_tags[0], "queryable");
@@ -411,7 +325,7 @@ fn test_function() {
 /// - value (int): Test value.
 fn test_function() {
 "#;
-        let docs = parse_osc_doc(input);
+        let docs = parse_osc_docs(input);
         assert_eq!(docs.len(), 1);
         assert_eq!(docs[0].access_tags.len(), 3);
         assert_eq!(docs[0].access_tags[0], "readable");
@@ -430,7 +344,7 @@ fn test_function() {
 /// - volume (float): The volume value.
 fn test_function() {
 "#;
-        let docs = parse_osc_doc(input);
+        let docs = parse_osc_docs(input);
         assert_eq!(docs.len(), 1);
         assert_eq!(docs[0].osc_address, "/track/{track_id}/volume");
         assert_eq!(docs[0].params.len(), 1);
@@ -456,7 +370,7 @@ fn test_function() {
 /// - value (float): The value of the parameter.
 fn test_function() {
 "#;
-        let docs = parse_osc_doc(input);
+        let docs = parse_osc_docs(input);
         assert_eq!(docs.len(), 1);
         assert_eq!(
             docs[0].osc_address,
@@ -485,7 +399,7 @@ fn test_function() {
 /// - arg3 (string): Third argument.
 fn test_function() {
 "#;
-        let docs = parse_osc_doc(input);
+        let docs = parse_osc_docs(input);
         assert_eq!(docs.len(), 1);
         assert_eq!(docs[0].arguments.len(), 3);
         assert_eq!(docs[0].arguments[0].name, "arg1");
@@ -506,7 +420,7 @@ fn test_function() {
 /// - data (int): Some data.
 fn test_function() {
 "#;
-        let docs = parse_osc_doc(input);
+        let docs = parse_osc_docs(input);
         assert_eq!(docs.len(), 1);
         assert_eq!(docs[0].comments.len(), 3);
         assert_eq!(docs[0].comments[0], "This is the first line of comment.");
@@ -532,7 +446,7 @@ fn test_function() {
 /// - value (float): The value of the parameter.
 fn test_function() {
 "#;
-        let docs = parse_osc_doc(input);
+        let docs = parse_osc_docs(input);
         assert_eq!(docs.len(), 1);
         
         // Check comments
@@ -574,7 +488,7 @@ fn test_function() {
 /// OSC Address: /notify/ready
 fn test_function() {
 "#;
-        let docs = parse_osc_doc(input);
+        let docs = parse_osc_docs(input);
         assert_eq!(docs.len(), 1);
         assert_eq!(docs[0].osc_address, "/notify/ready");
         assert_eq!(docs[0].params.len(), 0);
@@ -600,7 +514,7 @@ fn first_function() {
 /// - data (float): Second data.
 fn second_function() {
 "#;
-        let docs = parse_osc_doc(input);
+        let docs = parse_osc_docs(input);
         assert_eq!(docs.len(), 2);
         assert_eq!(docs[0].osc_address, "/first");
         assert_eq!(docs[0].arguments[0].r#type, "int");
@@ -620,7 +534,7 @@ fn second_function() {
 /// - bool_val (bool): A boolean.
 fn test_function() {
 "#;
-        let docs = parse_osc_doc(input);
+        let docs = parse_osc_docs(input);
         assert_eq!(docs.len(), 1);
         assert_eq!(docs[0].arguments.len(), 4);
         assert_eq!(docs[0].arguments[0].r#type, "int");
