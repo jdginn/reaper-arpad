@@ -215,8 +215,29 @@ fn parse_doc_block(input: &str) -> Vec<OscDoc> {
     docs
 }
 fn main() {
-    let src = fs::read_to_string("src/osc_routes.rs").expect("No src/lib.rs found");
-    let docs = parse_doc_block(&src);
+    let src_dir = "src/"; // Path to the source directory
+
+    let docs = fs::read_dir(src_dir)
+        .expect("Could not read src directory")
+        .filter_map(|entry| {
+            // Get the entry and its path, filter out directories
+            let path = entry.ok()?.path();
+            if path.is_file() {
+                // Only process .rs files
+                if let Some(ext) = path.extension() {
+                    if ext == "rs" {
+                        let src = fs::read_to_string(&path).ok()?; // Read file content
+                        return Some(parse_doc_block(&src)); // Parse and return docs
+                    }
+                }
+            }
+            None
+        })
+        .reduce(|mut acc, docs| {
+            acc.extend(docs); // Combine vectors
+            acc
+        })
+        .unwrap_or_default(); // Default to an empty vector if reduce is empty
 
     // Output header and yaml
     let yaml = serde_yaml::to_string(&docs).unwrap();
