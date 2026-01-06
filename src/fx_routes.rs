@@ -14,11 +14,11 @@ use crate::{get_track_by_guid, OscRoute, Reaper, ReceiverError, RouteError};
 // Need a way to receive parameter changes for FX (avoid being too noisy about it)
 
 /// @osc-doc
-/// @readonly
+/// @queryable
 /// OSC Address: /track/{track_guid}/fx/{fx_idx}/info
-/// Arguments:
-/// - track_guid (string): unique identifier for the track
-/// - fx_idx (int): index of the FX on the track
+/// - params:
+///   - track_guid (string): unique identifier for the track
+///   - fx_idx (int): index of the FX on the track
 /// Replies with many OSC messages reporting the folowing:
 /// - ident (int): unique identifier for the FX
 /// - name (string): name of the FX
@@ -107,30 +107,38 @@ impl OscRoute for TrackFXInfoRoute {
 }
 
 /// @osc-doc
+/// @readable
+/// @writeable
+/// @queryable
 /// OSC Address: /track/{track_guid}/fx/{fx_idx}/param/{param_idx}/value
-/// Arguments:
-/// - track_guid (string): unique identifier for the track
-/// - fx_idx (int): index of the FX on the track
-/// - param_idx (int): index of the parameter
-/// - value (float): value of the parameter
+/// - params:
+///   - track_guid (string): unique identifier for the track
+///   - fx_idx (int): index of the FX on the track
+///   - param_idx (int): index of the parameter
+/// - args:
+///   - value (float): value of the parameter
 ///
 /// @osc-doc
-/// @readonly
+/// @readable
+/// @queryable
 /// OSC Address: /track/{track_guid}/fx/{fx_idx}/param/{param_idx}/min
-/// Arguments:
-/// - track_guid (string): unique identifier for the track
-/// - fx_idx (int): index of the FX on the track
-/// - param_idx (int): index of the parameter
-/// - min (float): minimum value of the parameter
+/// - params:
+///   - track_guid (string): unique identifier for the track
+///   - fx_idx (int): index of the FX on the track
+///   - param_idx (int): index of the parameter
+/// - args:
+///   - min (float): minimum value of the parameter
 ///
 /// @osc-doc
-/// @readonly
+/// @readable
+/// @queryable
 /// OSC Address: /track/{track_guid}/fx/{fx_idx}/param/{param_idx}/max
-/// Arguments:
-/// - track_guid (string): unique identifier for the track
-/// - fx_idx (int): index of the FX on the track
-/// - param_idx (int): index of the parameter
-/// - max (float): maximum value of the parameter
+/// - params:
+///   - track_guid (string): unique identifier for the track
+///   - fx_idx (int): index of the FX on the track
+///   - param_idx (int): index of the parameter
+/// - args:
+///   - max (float): maximum value of the parameter
 pub struct TrackFXParamRoute;
 pub struct TrackFXParamParams {
     track_guid: String,
@@ -265,57 +273,57 @@ impl OscRoute for TrackFXParamRoute {
 }
 
 /// @osc-doc
-/// @readonly
+/// @queryable
 /// OSC Address: /fxinfo
-/// Arguments:
-/// - none
 /// Replies with many OSC messages reporting the following for all FX on all tracks:
 ///
 /// @osc-doc
-/// @readonly
+/// @readable
+/// @queryable
 /// OSC Address: /fxinfo/{ident}/name
-/// Arguments:
-/// - ident (string): unique identifier for the FX
-/// - name (string): name of the FX
+/// - params:
+///   - ident (string): unique identifier for the FX
+/// - args:
+///   - name (string): name of the FX
 ///
 /// @osc-doc
-/// @readonly
+/// @readable
+/// @queryable
 /// OSC Address: /fxinfo/{ident}/param_count
-/// Arguments:
-/// - ident (string): unique identifier for the FX
-/// - param_count (int): number of parameters for the FX
+/// - params:
+///   - ident (string): unique identifier for the FX
+/// - args:
+///   - param_count (int): number of parameters for the FX
 ///
 /// @osc-doc
-/// @readonly
+/// @readable
+/// @queryable
 /// OSC Address: /fxinfo/{ident}/param/{param_idx}/name
-/// Arguments:
-/// - ident (string): unique identifier for the FX
-/// - param_idx (int): index of the parameter
-/// - param_name (string): name of the parameter
+/// - params:
+///   - ident (string): unique identifier for the FX
+///   - param_idx (int): index of the parameter
+/// - args:
+///   - param_name (string): name of the parameter
 ///
 /// @osc-doc
-/// @readonly
-/// OSC Address: /fxinfo/{ident}/param/{param_idx}/value
-/// Arguments:
-/// - ident (string): unique identifier for the FX
-/// - param_idx (int): index of the parameter
-/// - param_value (float): current raw value of the parameter
-///
-/// @osc-doc
-/// @readonly
+/// @readable
+/// @queryable
 /// OSC Address: /fxinfo/{ident}/param/{param_idx}/min
-/// Arguments:
-/// - ident (string): unique identifier for the FX
-/// - param_idx (int): index of the parameter
-/// - param_min (float): minimum raw value of the parameter
+/// - params:
+///   - ident (string): unique identifier for the FX
+///   - param_idx (int): index of the parameter
+/// - args:
+///   - param_min (float): minimum raw value of the parameter
 ///
 /// @osc-doc
-/// @readonly
+/// @readable
+/// @queryable
 /// OSC Address: /fxinfo/{ident}/param/{param_idx}/max
-/// Arguments:
-/// - ident (string): unique identifier for the FX
-/// - param_idx (int): index of the parameter
-/// - param_max (float): maximum raw value of the parameter
+/// - params:
+///   - ident (string): unique identifier for the FX
+///   - param_idx (int): index of the parameter
+/// - args:
+///   - param_max (float): maximum raw value of the parameter
 pub struct AllFxInfoRoute;
 pub struct AllFxInfoParams;
 pub struct AllFxInfoArgs {
