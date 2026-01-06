@@ -73,10 +73,13 @@ pub(crate) trait OscRoute {
 
     fn matcher(segments: &[&str]) -> Option<Self::ReceiveParams>;
     fn receive(
-        params: Self::ReceiveParams,
-        msg: &OscMessage,
-        reaper: &Reaper,
-    ) -> Result<(), ReceiverError>;
+        _params: Self::ReceiveParams,
+        _msg: &OscMessage,
+        _reaper: &Reaper,
+    ) -> Result<(), ReceiverError> {
+        // Default case is do nothing if not @writeable
+        Ok(())
+    }
     fn build_packets(params: Self::SendParams, reaper: &Reaper) -> Vec<OscPacket>;
     /// Given receive params and reaper, build the corresponding SendParams for query
     fn collect_send_params(

@@ -26,10 +26,6 @@ impl OscRoute for NumTracksRoute {
         }
     }
 
-    fn receive(_: Self::ReceiveParams, _: &OscMessage, _: &Reaper) -> Result<(), ReceiverError> {
-        Ok(())
-    }
-
     fn build_packets(args: Self::SendParams, _: &Reaper) -> Vec<OscPacket> {
         vec![OscPacket::Message(OscMessage {
             addr: "/num_tracks".to_string(),
@@ -66,10 +62,6 @@ impl OscRoute for TrackAllGuidsRoute {
             ["track", "all_guids"] => Some(TrackAllGuidsParams {}),
             _ => None,
         }
-    }
-
-    fn receive(_: Self::ReceiveParams, _: &OscMessage, _: &Reaper) -> Result<(), ReceiverError> {
-        Ok(())
     }
 
     fn build_packets(args: Self::SendParams, _: &Reaper) -> Vec<OscPacket> {
@@ -128,10 +120,6 @@ impl OscRoute for TrackIndexRoute {
             }),
             _ => None,
         }
-    }
-
-    fn receive(_: Self::ReceiveParams, _: &OscMessage, _: &Reaper) -> Result<(), ReceiverError> {
-        Ok(())
     }
 
     fn build_packets(args: Self::SendParams, reaper: &Reaper) -> Vec<OscPacket> {
