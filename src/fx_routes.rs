@@ -52,7 +52,6 @@ pub struct TrackFXParamArgs {
 
 /// @osc-doc
 /// @readable
-/// @writeable
 /// @queryable
 /// OSC Address: /track/{track_guid}/fx/{fx_idx}/guid
 /// - params:
@@ -61,7 +60,7 @@ pub struct TrackFXParamArgs {
 /// - args:
 ///   - guid (string): unique identifier for the FX
 // TODO: make this writeable to allow changing the FX in this slot.
-// TODO: add a route to set FX by ident.
+// TODO: add a route to set FX by name.
 pub struct TrackFXGuidRoute;
 
 impl OscRoute for TrackFXGuidRoute {
@@ -285,7 +284,27 @@ impl OscRoute for TrackFXParamValueRoute {
         }
     }
 
-    fn build_packets(args: Self::SendParams, reaper: &Reaper) -> Vec<OscPacket> {
+    fn receive(
+        params: Self::ReceiveParams,
+        msg: &OscMessage,
+        reaper: &Reaper,
+    ) -> Result<(), ReceiverError> {
+        let track = get_track_by_guid(reaper, &params.track_guid)?;
+        unsafe {
+            reaper
+                .track_fx_set_param_normalized(
+                    track,
+                    reaper_medium::TrackFxLocation::NormalFxChain(params.fx_idx),
+                    params.param_idx,
+                    reaper_medium::ReaperNormalizedFxParamValue::from(
+                        msg.args[0].clone().float().unwrap() as f64,
+                    ),
+                )
+                .map_err(ReceiverError::Reaper)
+        }
+    }
+
+    fn build_packets(args: Self::SendParams, _reaper: &Reaper) -> Vec<OscPacket> {
         vec![OscPacket::Bundle(OscBundle {
             timetag: OscTime::try_from(SystemTime::now()).unwrap(),
             content: vec![
