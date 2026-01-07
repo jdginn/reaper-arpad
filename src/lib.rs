@@ -318,6 +318,15 @@ fn handle_packet(reaper: Reaper, packet: OscPacket, osc_sender: &Sender<OscPacke
             dispatch_route::<TrackSendVolumeRoute>(&segments, &msg, &reaper, osc_sender);
             dispatch_route::<TrackSendPanRoute>(&segments, &msg, &reaper, osc_sender);
             dispatch_route::<TrackColorRoute>(&segments, &msg, &reaper, osc_sender);
+            dispatch_route::<TrackFXGuidRoute>(&segments, &msg, &reaper, osc_sender);
+            dispatch_route::<TrackFXNameRoute>(&segments, &msg, &reaper, osc_sender);
+            dispatch_route::<TrackFXEnabledRoute>(&segments, &msg, &reaper, osc_sender);
+            dispatch_route::<TrackFXParamCountRoute>(&segments, &msg, &reaper, osc_sender);
+            dispatch_route::<TrackFXParamNameRoute>(&segments, &msg, &reaper, osc_sender);
+            dispatch_route::<TrackFXParamValueRoute>(&segments, &msg, &reaper, osc_sender);
+            dispatch_route::<TrackFXParamMinRoute>(&segments, &msg, &reaper, osc_sender);
+            dispatch_route::<TrackFXParamMaxRoute>(&segments, &msg, &reaper, osc_sender);
+            dispatch_route::<TrackFXInfoRoute>(&segments, &msg, &reaper, osc_sender);
             dispatch_route::<AllFxInfoRoute>(&segments, &msg, &reaper, osc_sender);
         }
         OscPacket::Bundle(bundle) => {
