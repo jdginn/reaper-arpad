@@ -34,6 +34,7 @@ pub struct ParamInfo {
 pub struct FxInfo {
     pub name: String,
     pub guid: reaper_low::raw::GUID,
+    pub enabled: bool,
     pub num_params: u32,
     pub params: Vec<ParamInfo>,
 }
@@ -145,6 +146,67 @@ impl OscRoute for TrackFXNameRoute {
                 )
                 .unwrap();
             Ok(fx_name.to_string())
+        }
+    }
+}
+
+/// @osc-doc
+/// @readable
+/// @writeable
+/// @queryable
+/// OSC Address: /track/{track_guid}/fx/{fx_idx}/enabled
+/// - params:
+///   - track_guid (string): unique identifier for the track
+///   - fx_idx (int): index of the FX on the track
+/// - args:
+///   - enabled (bool): true if the FX is enabled
+pub struct TrackFXEnabledRoute;
+impl OscRoute for TrackFXEnabledRoute {
+    type SendParams = bool;
+    type ReceiveParams = (String, u32); // (track_guid, fx_idx)
+
+    fn matcher(segments: &[&str]) -> Option<Self::ReceiveParams> {
+        match segments {
+            ["track", track_guid, "fx", fx_idx, "enabled"] => {
+                Some((track_guid.to_string(), fx_idx.parse().ok()?))
+            }
+            _ => None,
+        }
+    }
+
+    fn receive(
+        params: Self::ReceiveParams,
+        msg: &OscMessage,
+        reaper: &Reaper,
+    ) -> Result<(), ReceiverError> {
+        let track = get_track_by_guid(reaper, &params.0)?;
+        let enabled = msg.args[0].clone().bool().unwrap();
+        unsafe {
+            Ok(reaper.track_fx_set_enabled(
+                track,
+                reaper_medium::TrackFxLocation::NormalFxChain(params.1),
+                enabled,
+            ))
+        }
+    }
+
+    fn build_packets(args: Self::SendParams, _reaper: &Reaper) -> Vec<OscPacket> {
+        vec![OscPacket::Message(OscMessage {
+            addr: "/track/{track_guid}/fx/{fx_idx}/enabled".to_string(),
+            args: vec![OscType::Bool(args)],
+        })]
+    }
+
+    fn collect_send_params(
+        params: &Self::ReceiveParams,
+        reaper: &Reaper,
+    ) -> Result<Self::SendParams, RouteError> {
+        let track = get_track_by_guid(reaper, &params.0)?;
+        unsafe {
+            Ok(reaper.track_fx_get_enabled(
+                track,
+                reaper_medium::TrackFxLocation::NormalFxChain(params.1),
+            ))
         }
     }
 }
@@ -445,15 +507,15 @@ impl OscRoute for TrackFXParamMaxRoute {
 ///   - fx_idx (int): index of the FX on the track
 ///
 /// Replies with many OSC messages reporting the folowing:
-/// - guid (string): unique identifier for the FX
-/// - name (string): name of the FX
-/// - param_count (int): number of parameters for the FX
-/// - for each param:
-///   - param_idx (int): index of the parameter
-///   - param_name (string): name of the parameter
-///   - param_value (float): current value of the parameter, normalized to 0.
-///   - param_min (float): minimum value of the parameter, normalized to 0. TODO: what here?
-///   - param_max (float): maximum value of the parameter, normalized to 1.0
+///   guid (string): unique identifier for the FX
+///   name (string): name of the FX
+///   param_count (int): number of parameters for the FX
+///   for each param:
+///     param_idx (int): index of the parameter
+///     param_name (string): name of the parameter
+///     param_value (float): current value of the parameter, normalized to 0.
+///     param_min (float): minimum value of the parameter, normalized to 0. TODO: what here?
+///     param_max (float): maximum value of the parameter, normalized to 1.0
 pub struct TrackFXInfoRoute;
 pub struct TrackFXInfoParams {
     track_guid: String,
@@ -557,6 +619,10 @@ impl OscRoute for TrackFXInfoRoute {
                 track,
                 reaper_medium::TrackFxLocation::NormalFxChain(params.fx_idx),
             );
+            let enabled = reaper.track_fx_get_enabled(
+                track,
+                reaper_medium::TrackFxLocation::NormalFxChain(params.fx_idx),
+            );
             let mut fx_params = vec![];
             for param_idx in 0..num_params {
                 fx_params.push(
@@ -577,6 +643,7 @@ impl OscRoute for TrackFXInfoRoute {
                 fx_info: FxInfo {
                     name: fx_name.to_string(),
                     guid: fx_guid,
+                    enabled,
                     num_params,
                     params: fx_params,
                 },
@@ -978,6 +1045,7 @@ impl OscRoute for AllFxInfoRoute {
                 fx_infos.push(FxInfo {
                     name,
                     guid: fx_guid,
+                    enabled: false,
                     num_params,
                     params,
                 });
