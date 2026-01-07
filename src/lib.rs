@@ -260,6 +260,40 @@ impl ControlSurface for ArpadSurface {
                 self.osc_sender.send(packet).unwrap();
             });
     }
+    fn ext_set_fx_param(&self, args: reaper_medium::ExtSetFxParamArgs) -> i32 {
+        TrackFXParamValueRoute::build_packets(
+            TrackFXParamArgs {
+                track_guid: get_track_guid(&self.reaper, args.track),
+                fx_idx: args.fx_index,
+                param_idx: args.param_index,
+                param_info: ParamInfo {
+                    param_value: args.param_value.get(),
+                    ..Default::default()
+                },
+            },
+            &self.reaper,
+        )
+        .into_iter()
+        .for_each(|packet| {
+            self.osc_sender.send(packet).unwrap();
+        });
+        0 // TODO: is this correct?
+    }
+    // TODO: implement
+    // fn ext_set_fx_enabled(&self, args: reaper_medium::ExtSetFxEnabledArgs) {
+    //     TrackFXEnabledRoute::build_packets(
+    //         TrackFXInfoArgs {
+    //             track_guid: get_track_guid(&self.reaper, args.track),
+    //             fx_idx: args.fx_location,
+    //             enabled: args.enabled,
+    //         },
+    //         &self.reaper,
+    //     )
+    //     .into_iter()
+    //     .for_each(|packet| {
+    //         self.osc_sender.send(packet).unwrap();
+    //     });
+    // }
     fn run(&mut self) {
         self.poll_manager.poll_all(&self.osc_sender);
         let mut buf = [0u8; rosc::decoder::MTU];
