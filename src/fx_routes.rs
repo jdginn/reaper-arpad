@@ -273,13 +273,6 @@ impl OscRoute for TrackFXParamValueRoute {
                     param_idx: param_idx.parse().ok()?,
                 })
             }
-            ["track", track_guid, "fx", fx_idx, "param", param_idx, "max"] => {
-                Some(TrackFXParamParams {
-                    track_guid: track_guid.to_string(),
-                    fx_idx: fx_idx.parse().ok()?,
-                    param_idx: param_idx.parse().ok()?,
-                })
-            }
             _ => None,
         }
     }
@@ -307,37 +300,13 @@ impl OscRoute for TrackFXParamValueRoute {
     fn build_packets(args: Self::SendParams, _reaper: &Reaper) -> Vec<OscPacket> {
         vec![OscPacket::Bundle(OscBundle {
             timetag: OscTime::try_from(SystemTime::now()).unwrap(),
-            content: vec![
-                OscPacket::Message(OscMessage {
-                    addr: format!(
-                        "/track/{}/fx/{}/param/{}/name",
-                        args.track_guid, args.fx_idx, args.param_idx
-                    ),
-                    args: vec![OscType::String(args.param_info.param_name.clone())],
-                }),
-                OscPacket::Message(OscMessage {
-                    addr: format!(
-                        "/track/{}/fx/{}/param/{}/value",
-                        args.track_guid, args.fx_idx, args.param_idx
-                    ),
-                    args: vec![OscType::Float(args.param_info.param_value as f32)],
-                }),
-                OscPacket::Message(OscMessage {
-                    addr: format!(
-                        "/track/{}/fx/{}/param/{}/min",
-                        args.track_guid, args.fx_idx, args.param_idx
-                    ),
-                    args: vec![OscType::Float(args.param_info.param_min as f32)],
-                }),
-                OscPacket::Message(OscMessage {
-                    addr: format!(
-                        "/track/{}/fx/{}/param/{}/max",
-                        args.track_guid, args.fx_idx, args.param_idx
-                    ),
-                    args: vec![OscType::Float(args.param_info.param_max as f32)],
-                }),
-                // TODO: step size?
-            ],
+            content: vec![OscPacket::Message(OscMessage {
+                addr: format!(
+                    "/track/{}/fx/{}/param/{}/value",
+                    args.track_guid, args.fx_idx, args.param_idx
+                ),
+                args: vec![OscType::Float(args.param_info.param_value as f32)],
+            })],
         })]
     }
 
@@ -386,22 +355,13 @@ impl OscRoute for TrackFXParamMinRoute {
     fn build_packets(args: Self::SendParams, _reaper: &Reaper) -> Vec<OscPacket> {
         vec![OscPacket::Bundle(OscBundle {
             timetag: OscTime::try_from(SystemTime::now()).unwrap(),
-            content: vec![
-                OscPacket::Message(OscMessage {
-                    addr: format!(
-                        "/track/{}/fx/{}/param/{}/name",
-                        args.track_guid, args.fx_idx, args.param_idx
-                    ),
-                    args: vec![OscType::String(args.param_info.param_name.clone())],
-                }),
-                OscPacket::Message(OscMessage {
-                    addr: format!(
-                        "/track/{}/fx/{}/param/{}/min",
-                        args.track_guid, args.fx_idx, args.param_idx
-                    ),
-                    args: vec![OscType::Float(args.param_info.param_min as f32)],
-                }),
-            ],
+            content: vec![OscPacket::Message(OscMessage {
+                addr: format!(
+                    "/track/{}/fx/{}/param/{}/min",
+                    args.track_guid, args.fx_idx, args.param_idx
+                ),
+                args: vec![OscType::Float(args.param_info.param_min as f32)],
+            })],
         })]
     }
 
@@ -451,13 +411,6 @@ impl OscRoute for TrackFXParamMaxRoute {
         vec![OscPacket::Bundle(OscBundle {
             timetag: OscTime::try_from(SystemTime::now()).unwrap(),
             content: vec![
-                OscPacket::Message(OscMessage {
-                    addr: format!(
-                        "/track/{}/fx/{}/param/{}/name",
-                        args.track_guid, args.fx_idx, args.param_idx
-                    ),
-                    args: vec![OscType::String(args.param_info.param_name.clone())],
-                }),
                 OscPacket::Message(OscMessage {
                     addr: format!(
                         "/track/{}/fx/{}/param/{}/max",
