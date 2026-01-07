@@ -22,7 +22,7 @@ fn fx_guid_to_string(guid: reaper_low::raw::GUID) -> String {
     )
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct ParamInfo {
     pub param_name: String,
     pub param_value: f64,
@@ -45,10 +45,10 @@ pub struct TrackFXParamParams {
     param_idx: u32,
 }
 pub struct TrackFXParamArgs {
-    track_guid: String,
-    fx_idx: u32,
-    param_idx: u32,
-    param_info: ParamInfo,
+    pub track_guid: String,
+    pub fx_idx: u32,
+    pub param_idx: u32,
+    pub param_info: ParamInfo,
 }
 
 /// @osc-doc
@@ -162,7 +162,7 @@ impl OscRoute for TrackFXNameRoute {
 ///   - enabled (bool): true if the FX is enabled
 pub struct TrackFXEnabledRoute;
 impl OscRoute for TrackFXEnabledRoute {
-    type SendParams = bool;
+    type SendParams = TrackFXInfoArgs;
     type ReceiveParams = (String, u32); // (track_guid, fx_idx)
 
     fn matcher(segments: &[&str]) -> Option<Self::ReceiveParams> {
@@ -192,8 +192,8 @@ impl OscRoute for TrackFXEnabledRoute {
 
     fn build_packets(args: Self::SendParams, _reaper: &Reaper) -> Vec<OscPacket> {
         vec![OscPacket::Message(OscMessage {
-            addr: "/track/{track_guid}/fx/{fx_idx}/enabled".to_string(),
-            args: vec![OscType::Bool(args)],
+            addr: format!("/track/{}/fx/{}/enabled", args.track_guid, args.fx_idx).to_string(),
+            args: vec![OscType::Bool(args.fx_info.enabled)],
         })]
     }
 
@@ -522,9 +522,9 @@ pub struct TrackFXInfoParams {
     fx_idx: u32,
 }
 pub struct TrackFXInfoArgs {
-    track_guid: String,
-    fx_idx: u32,
-    fx_info: FxInfo,
+    pub track_guid: String,
+    pub fx_idx: u32,
+    pub fx_info: FxInfo,
 }
 
 impl OscRoute for TrackFXInfoRoute {
