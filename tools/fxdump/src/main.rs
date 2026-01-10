@@ -59,7 +59,6 @@ fn main() {
 
     // Collect FX information
     let mut fx_data: HashMap<String, FxInfo> = HashMap::new();
-    let mut param_counts: HashMap<String, u32> = HashMap::new();
     let mut buf = [0u8; rosc::decoder::MTU];
 
     let start_time = std::time::Instant::now();
@@ -76,7 +75,7 @@ fn main() {
             Ok((size, _addr)) => {
                 if let Ok((_, packet)) = rosc::decoder::decode_udp(&buf[..size]) {
                     message_count += 1;
-                    process_packet(&packet, &mut fx_data, &mut param_counts);
+                    process_packet(&packet, &mut fx_data);
                 }
             }
             Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
@@ -109,15 +108,14 @@ fn main() {
 fn process_packet(
     packet: &OscPacket,
     fx_data: &mut HashMap<String, FxInfo>,
-    param_counts: &mut HashMap<String, u32>,
 ) {
     match packet {
         OscPacket::Message(msg) => {
-            process_message(msg, fx_data, param_counts);
+            process_message(msg, fx_data);
         }
         OscPacket::Bundle(bundle) => {
             for content in &bundle.content {
-                process_packet(content, fx_data, param_counts);
+                process_packet(content, fx_data);
             }
         }
     }
@@ -141,7 +139,6 @@ fn ensure_param_exists(fx_entry: &mut FxInfo, param_idx: u32) -> &mut FxParam {
 fn process_message(
     msg: &OscMessage,
     fx_data: &mut HashMap<String, FxInfo>,
-    param_counts: &mut HashMap<String, u32>,
 ) {
     let segments: Vec<&str> = msg.addr.split('/').filter(|s| !s.is_empty()).collect();
 
@@ -157,10 +154,8 @@ fn process_message(
                     .fx_name = name.clone();
             }
         }
-        ["fxinfo", fx_ident, "param_count"] => {
-            if let Some(OscType::Int(count)) = msg.args.first() {
-                param_counts.insert(fx_ident.to_string(), *count as u32);
-            }
+        ["fxinfo", _fx_ident, "param_count"] => {
+            // We don't need to track param_count - we collect params as they arrive
         }
         ["fxinfo", fx_ident, "param", param_idx_str, "name"] => {
             if let Ok(param_idx) = param_idx_str.parse::<u32>() {
