@@ -53,7 +53,8 @@ fn main() {
 
     println!("Query sent, waiting for responses...");
 
-    // Set socket timeout
+    // Set socket timeout to prevent indefinite blocking on recv
+    // The manual timeout check below ensures we exit after TIMEOUT_SECS total elapsed time
     sock.set_read_timeout(Some(Duration::from_secs(TIMEOUT_SECS)))
         .expect("Failed to set socket timeout");
 
