@@ -1,6 +1,5 @@
 use rosc::{encoder, OscMessage, OscPacket, OscType};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::net::{SocketAddrV4, UdpSocket};
 use std::str::FromStr;
 use std::time::Duration;
@@ -59,7 +58,11 @@ fn main() {
         .expect("Failed to set socket timeout");
 
     // Collect FX information
-    let mut fx_data: HashMap<String, FxInfo> = HashMap::new();
+    // Note: We use a Vec instead of HashMap because OSC addresses have literal placeholders
+    // (e.g., "/fxinfo/{ident}/name") that don't get substituted, so all FX would have the
+    // same key and overwrite each other. Instead, we track by order of arrival.
+    let mut fx_list: Vec<FxInfo> = Vec::new();
+    let mut current_fx: Option<FxInfo> = None;
     let mut buf = [0u8; rosc::decoder::MTU];
 
     let start_time = std::time::Instant::now();
@@ -76,7 +79,7 @@ fn main() {
             Ok((size, _addr)) => {
                 if let Ok((_, packet)) = rosc::decoder::decode_udp(&buf[..size]) {
                     message_count += 1;
-                    process_packet(&packet, &mut fx_data);
+                    process_packet(&packet, &mut fx_list, &mut current_fx);
                 }
             }
             Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
@@ -89,11 +92,15 @@ fn main() {
         }
     }
 
-    println!("Received {} OSC messages", message_count);
-    println!("Collected information for {} FX", fx_data.len());
+    // Add the last FX if it exists
+    if let Some(fx) = current_fx {
+        fx_list.push(fx);
+    }
 
-    // Convert to sorted vector for consistent output
-    let mut fx_list: Vec<FxInfo> = fx_data.into_values().collect();
+    println!("Received {} OSC messages", message_count);
+    println!("Collected information for {} FX", fx_list.len());
+
+    // Sort for consistent output
     fx_list.sort_by(|a, b| a.fx_name.cmp(&b.fx_name));
 
     // Write to YAML file
@@ -108,15 +115,16 @@ fn main() {
 
 fn process_packet(
     packet: &OscPacket,
-    fx_data: &mut HashMap<String, FxInfo>,
+    fx_list: &mut Vec<FxInfo>,
+    current_fx: &mut Option<FxInfo>,
 ) {
     match packet {
         OscPacket::Message(msg) => {
-            process_message(msg, fx_data);
+            process_message(msg, fx_list, current_fx);
         }
         OscPacket::Bundle(bundle) => {
             for content in &bundle.content {
-                process_packet(content, fx_data);
+                process_packet(content, fx_list, current_fx);
             }
         }
     }
@@ -139,67 +147,54 @@ fn ensure_param_exists(fx_entry: &mut FxInfo, param_idx: u32) -> &mut FxParam {
 
 fn process_message(
     msg: &OscMessage,
-    fx_data: &mut HashMap<String, FxInfo>,
+    fx_list: &mut Vec<FxInfo>,
+    current_fx: &mut Option<FxInfo>,
 ) {
     let segments: Vec<&str> = msg.addr.split('/').filter(|s| !s.is_empty()).collect();
 
     match segments.as_slice() {
-        ["fxinfo", fx_ident, "name"] => {
+        ["fxinfo", _fx_ident, "name"] => {
+            // When we receive a new FX name, save the previous FX and start a new one
             if let Some(OscType::String(name)) = msg.args.first() {
-                fx_data
-                    .entry(fx_ident.to_string())
-                    .or_insert_with(|| FxInfo {
-                        fx_name: name.clone(),
-                        params: vec![],
-                    })
-                    .fx_name = name.clone();
+                if let Some(fx) = current_fx.take() {
+                    fx_list.push(fx);
+                }
+                *current_fx = Some(FxInfo {
+                    fx_name: name.clone(),
+                    params: vec![],
+                });
             }
         }
         ["fxinfo", _fx_ident, "param_count"] => {
             // We don't need to track param_count - we collect params as they arrive
         }
-        ["fxinfo", fx_ident, "param", param_idx_str, "name"] => {
+        ["fxinfo", _fx_ident, "param", param_idx_str, "name"] => {
             if let Ok(param_idx) = param_idx_str.parse::<u32>() {
                 if let Some(OscType::String(param_name)) = msg.args.first() {
-                    let fx_entry = fx_data
-                        .entry(fx_ident.to_string())
-                        .or_insert_with(|| FxInfo {
-                            fx_name: String::new(),
-                            params: vec![],
-                        });
-
-                    let param = ensure_param_exists(fx_entry, param_idx);
-                    param.name = param_name.clone();
+                    if let Some(fx) = current_fx.as_mut() {
+                        let param = ensure_param_exists(fx, param_idx);
+                        param.name = param_name.clone();
+                    }
                 }
             }
         }
-        ["fxinfo", fx_ident, "param", param_idx_str, "min"] => {
+        ["fxinfo", _fx_ident, "param", param_idx_str, "min"] => {
             if let Ok(param_idx) = param_idx_str.parse::<u32>() {
                 if let Some(OscType::Float(min_val)) = msg.args.first() {
-                    let fx_entry = fx_data
-                        .entry(fx_ident.to_string())
-                        .or_insert_with(|| FxInfo {
-                            fx_name: String::new(),
-                            params: vec![],
-                        });
-
-                    let param = ensure_param_exists(fx_entry, param_idx);
-                    param.min = *min_val;
+                    if let Some(fx) = current_fx.as_mut() {
+                        let param = ensure_param_exists(fx, param_idx);
+                        param.min = *min_val;
+                    }
                 }
             }
         }
-        ["fxinfo", fx_ident, "param", param_idx_str, "max"] => {
+        ["fxinfo", _fx_ident, "param", param_idx_str, "max"] => {
             if let Ok(param_idx) = param_idx_str.parse::<u32>() {
                 if let Some(OscType::Float(max_val)) = msg.args.first() {
-                    let fx_entry = fx_data
-                        .entry(fx_ident.to_string())
-                        .or_insert_with(|| FxInfo {
-                            fx_name: String::new(),
-                            params: vec![],
-                        });
-
-                    let param = ensure_param_exists(fx_entry, param_idx);
-                    param.max = *max_val;
+                    if let Some(fx) = current_fx.as_mut() {
+                        let param = ensure_param_exists(fx, param_idx);
+                        param.max = *max_val;
+                    }
                 }
             }
         }
