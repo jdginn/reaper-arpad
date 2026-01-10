@@ -5,8 +5,8 @@ use std::net::{SocketAddrV4, UdpSocket};
 use std::str::FromStr;
 use std::time::Duration;
 
-const HOST_ADDR: &str = "0.0.0.0:9090";
-const DEVICE_ADDR: &str = "0.0.0.0:9091";
+const HOST_ADDR: &str = "0.0.0.0:9091";
+const DEVICE_ADDR: &str = "0.0.0.0:9090";
 const TIMEOUT_SECS: u64 = 5;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -27,14 +27,11 @@ fn main() {
     println!("FX Dump Tool - Collecting FX information from Reaper via OSC");
 
     // Set up UDP sockets
-    let host_addr = SocketAddrV4::from_str(HOST_ADDR)
-        .expect("Failed to parse HOST_ADDR");
-    let dev_addr = SocketAddrV4::from_str(DEVICE_ADDR)
-        .expect("Failed to parse DEVICE_ADDR");
+    let host_addr = SocketAddrV4::from_str(HOST_ADDR).expect("Failed to parse HOST_ADDR");
+    let dev_addr = SocketAddrV4::from_str(DEVICE_ADDR).expect("Failed to parse DEVICE_ADDR");
 
     // Bind to HOST_ADDR (where we receive messages)
-    let sock = UdpSocket::bind(host_addr)
-        .expect("Failed to bind to HOST_ADDR");
+    let sock = UdpSocket::bind(host_addr).expect("Failed to bind to HOST_ADDR");
 
     println!("Bound to {}", host_addr);
     println!("Sending OSC query to Reaper at {}", dev_addr);
@@ -45,8 +42,7 @@ fn main() {
         args: vec![],
     });
 
-    let msg_buf = encoder::encode(&query_msg)
-        .expect("Failed to encode OSC message");
+    let msg_buf = encoder::encode(&query_msg).expect("Failed to encode OSC message");
 
     sock.send_to(&msg_buf, dev_addr)
         .expect("Failed to send OSC message");
@@ -97,11 +93,9 @@ fn main() {
     fx_list.sort_by(|a, b| a.fx_name.cmp(&b.fx_name));
 
     // Write to YAML file
-    let yaml_output = serde_yaml::to_string(&fx_list)
-        .expect("Failed to serialize to YAML");
+    let yaml_output = serde_yaml::to_string(&fx_list).expect("Failed to serialize to YAML");
 
-    std::fs::write("fx_dump.yaml", yaml_output)
-        .expect("Failed to write YAML file");
+    std::fs::write("fx_dump.yaml", yaml_output).expect("Failed to write YAML file");
 
     println!("FX information written to fx_dump.yaml");
 }
