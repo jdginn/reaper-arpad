@@ -21,4 +21,4 @@ crate-type = ["cdylib"]
 
 
 [workspace]
-members = ["tools/oscdoc"]
+members = ["tools/oscdoc", "tools/fxdump"]
