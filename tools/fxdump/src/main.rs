@@ -1,7 +1,6 @@
 use rosc::{encoder, OscMessage, OscPacket, OscType};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::error::Error;
 use std::net::{SocketAddrV4, UdpSocket};
 use std::str::FromStr;
 use std::time::Duration;
@@ -24,7 +23,7 @@ struct FxInfo {
     params: Vec<FxParam>,
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() {
     println!("FX Dump Tool - Collecting FX information from Reaper via OSC");
 
     // Set up UDP sockets
@@ -105,8 +104,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         .expect("Failed to write YAML file");
 
     println!("FX information written to fx_dump.yaml");
-
-    Ok(())
 }
 
 fn process_packet(
@@ -130,13 +127,14 @@ fn ensure_param_exists(fx_entry: &mut FxInfo, param_idx: u32) -> &mut FxParam {
     if let Some(pos) = fx_entry.params.iter().position(|p| p.index == param_idx) {
         &mut fx_entry.params[pos]
     } else {
+        let new_index = fx_entry.params.len();
         fx_entry.params.push(FxParam {
             name: String::new(),
             index: param_idx,
             min: 0.0,
             max: 1.0,
         });
-        fx_entry.params.last_mut().unwrap()
+        &mut fx_entry.params[new_index]
     }
 }
 
