@@ -203,10 +203,20 @@ impl OscRoute for TrackFXEnabledRoute {
     ) -> Result<Self::SendParams, RouteError> {
         let track = get_track_by_guid(reaper, &params.0)?;
         unsafe {
-            Ok(reaper.track_fx_get_enabled(
-                track,
-                reaper_medium::TrackFxLocation::NormalFxChain(params.1),
-            ))
+            Ok(TrackFXInfoArgs {
+                track_guid: params.0.clone(),
+                fx_idx: params.1,
+                fx_info: FxInfo {
+                    name: "".to_string(),
+                    guid: reaper_low::raw::GUID::default(),
+                    enabled: reaper.track_fx_get_enabled(
+                        track,
+                        reaper_medium::TrackFxLocation::NormalFxChain(params.1),
+                    ),
+                    num_params: 0,
+                    params: vec![],
+                },
+            })
         }
     }
 }
@@ -699,7 +709,7 @@ fn collect_track_param_info(
 ///   - name (string): name of the FX
 pub struct FxInfoNameRoute;
 impl OscRoute for FxInfoNameRoute {
-    type SendParams = String;
+    type SendParams = (String, String); // (ident, name)
     type ReceiveParams = String; // ident
 
     fn matcher(segments: &[&str]) -> Option<Self::ReceiveParams> {
@@ -711,8 +721,8 @@ impl OscRoute for FxInfoNameRoute {
 
     fn build_packets(args: Self::SendParams, _reaper: &Reaper) -> Vec<OscPacket> {
         vec![OscPacket::Message(OscMessage {
-            addr: "/fxinfo/{ident}/name".to_string(),
-            args: vec![OscType::String(args)],
+            addr: format!("/fxinfo/{}/name", args.0).to_string(),
+            args: vec![OscType::String(args.1)],
         })]
     }
 
@@ -720,7 +730,7 @@ impl OscRoute for FxInfoNameRoute {
         _params: &Self::ReceiveParams,
         _reaper: &Reaper,
     ) -> Result<Self::SendParams, RouteError> {
-        Ok("".to_string())
+        Ok((String::new(), String::new()))
     }
 }
 ///
@@ -735,7 +745,7 @@ impl OscRoute for FxInfoNameRoute {
 pub struct FxInfoParamCountRoute;
 
 impl OscRoute for FxInfoParamCountRoute {
-    type SendParams = u32;
+    type SendParams = (String, u32);
     type ReceiveParams = String; // ident
 
     fn matcher(segments: &[&str]) -> Option<Self::ReceiveParams> {
@@ -747,8 +757,8 @@ impl OscRoute for FxInfoParamCountRoute {
 
     fn build_packets(args: Self::SendParams, _reaper: &Reaper) -> Vec<OscPacket> {
         vec![OscPacket::Message(OscMessage {
-            addr: "/fxinfo/{ident}/param_count".to_string(),
-            args: vec![OscType::Int(args as i32)],
+            addr: format!("/fxinfo/{}/param_count", args.0).to_string(),
+            args: vec![OscType::Int(args.1 as i32)],
         })]
     }
 
@@ -756,7 +766,7 @@ impl OscRoute for FxInfoParamCountRoute {
         _params: &Self::ReceiveParams,
         _reaper: &Reaper,
     ) -> Result<Self::SendParams, RouteError> {
-        Ok(0)
+        Ok((String::new(), 0))
     }
 }
 
@@ -772,7 +782,7 @@ impl OscRoute for FxInfoParamCountRoute {
 pub struct FxInfoParamNameRoute;
 
 impl OscRoute for FxInfoParamNameRoute {
-    type SendParams = String;
+    type SendParams = (String, u32, String);
     type ReceiveParams = (String, u32); // (ident, param_idx)
 
     fn matcher(segments: &[&str]) -> Option<Self::ReceiveParams> {
@@ -786,8 +796,8 @@ impl OscRoute for FxInfoParamNameRoute {
 
     fn build_packets(args: Self::SendParams, _reaper: &Reaper) -> Vec<OscPacket> {
         vec![OscPacket::Message(OscMessage {
-            addr: "/fxinfo/{ident}/param/{param_idx}/name".to_string(),
-            args: vec![OscType::String(args)],
+            addr: format!("/fxinfo/{}/param/{}/name", args.0, args.1).to_string(),
+            args: vec![OscType::String(args.2)],
         })]
     }
 
@@ -795,7 +805,7 @@ impl OscRoute for FxInfoParamNameRoute {
         _params: &Self::ReceiveParams,
         _reaper: &Reaper,
     ) -> Result<Self::SendParams, RouteError> {
-        Ok("".to_string())
+        Ok((String::new(), 0, String::new()))
     }
 }
 
@@ -811,7 +821,7 @@ impl OscRoute for FxInfoParamNameRoute {
 pub struct FxInfoParamMinRoute;
 
 impl OscRoute for FxInfoParamMinRoute {
-    type SendParams = f64;
+    type SendParams = (String, u32, f64); // (ident, param_idx, param_min)
     type ReceiveParams = (String, u32); // (ident, param_idx)
 
     fn matcher(segments: &[&str]) -> Option<Self::ReceiveParams> {
@@ -825,8 +835,8 @@ impl OscRoute for FxInfoParamMinRoute {
 
     fn build_packets(args: Self::SendParams, _reaper: &Reaper) -> Vec<OscPacket> {
         vec![OscPacket::Message(OscMessage {
-            addr: "/fxinfo/{ident}/param/{param_idx}/min".to_string(),
-            args: vec![OscType::Float(args as f32)],
+            addr: format!("/fxinfo/{}/param/{}/min", args.0, args.1).to_string(),
+            args: vec![OscType::Float(args.2 as f32)],
         })]
     }
 
@@ -834,7 +844,7 @@ impl OscRoute for FxInfoParamMinRoute {
         _params: &Self::ReceiveParams,
         _reaper: &Reaper,
     ) -> Result<Self::SendParams, RouteError> {
-        Ok(0.0)
+        Ok((String::new(), 0, 0.0))
     }
 }
 
@@ -850,7 +860,7 @@ impl OscRoute for FxInfoParamMinRoute {
 pub struct FxInfoParamMaxRoute;
 
 impl OscRoute for FxInfoParamMaxRoute {
-    type SendParams = f64;
+    type SendParams = (String, u32, f64); // (ident, param_idx, param_max)
     type ReceiveParams = (String, u32); // (ident, param_idx)
 
     fn matcher(segments: &[&str]) -> Option<Self::ReceiveParams> {
@@ -864,8 +874,8 @@ impl OscRoute for FxInfoParamMaxRoute {
 
     fn build_packets(args: Self::SendParams, _reaper: &Reaper) -> Vec<OscPacket> {
         vec![OscPacket::Message(OscMessage {
-            addr: "/fxinfo/{ident}/param/{param_idx}/max".to_string(),
-            args: vec![OscType::Float(args as f32)],
+            addr: format!("/fxinfo/{}/param/{}/max", args.0, args.1).to_string(),
+            args: vec![OscType::Float(args.2 as f32)],
         })]
     }
 
@@ -873,7 +883,7 @@ impl OscRoute for FxInfoParamMaxRoute {
         _params: &Self::ReceiveParams,
         _reaper: &Reaper,
     ) -> Result<Self::SendParams, RouteError> {
-        Ok(0.0)
+        Ok((String::new(), 0, 0.0))
     }
 }
 
@@ -914,11 +924,11 @@ impl OscRoute for AllFxInfoRoute {
                 let guid = fx_guid_to_string(fx_info.guid);
                 let mut msg_content = vec![];
                 msg_content.extend(FxInfoNameRoute::build_packets(
-                    fx_info.name.clone(),
+                    (fx_info.name.clone(), fx_info.name.clone()),
                     _reaper,
                 ));
                 msg_content.extend(FxInfoParamCountRoute::build_packets(
-                    fx_info.num_params,
+                    (fx_info.name.clone(), fx_info.num_params),
                     _reaper,
                 ));
                 messages.push(OscPacket::Bundle(OscBundle {
@@ -928,13 +938,21 @@ impl OscRoute for AllFxInfoRoute {
                 for (param_idx, param) in fx_info.params.clone().into_iter().enumerate() {
                     let mut msg_content = vec![];
                     msg_content.extend(FxInfoParamNameRoute::build_packets(
-                        param.param_name.clone(),
+                        (
+                            fx_info.name.clone(),
+                            param_idx as u32,
+                            param.param_name.clone(),
+                        ),
                         _reaper,
                     ));
-                    msg_content
-                        .extend(FxInfoParamMinRoute::build_packets(param.param_min, _reaper));
-                    msg_content
-                        .extend(FxInfoParamMaxRoute::build_packets(param.param_max, _reaper));
+                    msg_content.extend(FxInfoParamMinRoute::build_packets(
+                        (fx_info.name.clone(), param_idx as u32, param.param_min),
+                        _reaper,
+                    ));
+                    msg_content.extend(FxInfoParamMaxRoute::build_packets(
+                        (fx_info.name.clone(), param_idx as u32, param.param_max),
+                        _reaper,
+                    ));
                     messages.push(OscPacket::Bundle(OscBundle {
                         timetag: OscTime::try_from(SystemTime::now()).unwrap(),
                         content: msg_content,
