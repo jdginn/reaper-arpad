@@ -5,6 +5,8 @@ use std::sync::Arc;
 use dashmap::DashMap;
 use lazy_static::lazy_static;
 
+// TODO: I think this is not needed now that we realized that reaper has an fx guid. Remove?
+
 lazy_static! {
     static ref FX_IDENT_TO_HASH: Arc<DashMap<String, u64>> = Arc::new(DashMap::new());
     static ref HASH_TO_FX_IDENT: Arc<DashMap<u64, String>> = Arc::new(DashMap::new());

@@ -39,16 +39,18 @@ const YAML_HEADER: &str = r#"
 # Routes may be used in 3 ways, each of which is indicated by a corresponding access tag:
 # 1. readable: The route transmits data FROM the application. The client can listen for messages on this route.
 #   When Reaper sends these messages, their placeholders will be populated.
-
+#
 # 2. writeable: The route accepts data TO the application. The client can send messages to this route.
 #   It is the client's responsibility to populate the placeholders with appropriate values.
 #   Whatever argument the client passes will be the new value set within Reaper.
 #   NOTE: writeable does NOT imply readable.
-
+#
 # 3. queryable: The route supports querying, which prompts the application to send the current value back to the client along this route.
 #   To query a route, append `?` to the end of the address. Any arguments are discarded when querying. Reaper will respond on the readable version of this route (WITHOUT appending `?`).
 #   Parameters are still required in the address when querying (whenever the route includes placeholders).
 #   NOTE: queryable implies readable.
+#
+# Some queryable-only routes do not respond with the same address, but instead respond on a different address. In such cases, the response(s) will be on existingroutes documented in this file.
 "#;
 
 /// Tool to extract OSC documentation from Rust source code and output as YAML.
@@ -135,6 +137,8 @@ const YAML_HEADER: &str = r#"
 ///   - readable
 ///   - writeable
 ///   - queryable
+///
+/// TODO: Add a way to specify which routes a query-only route will respond on.
 fn parse_doc_block(input: &str) -> Vec<OscDoc> {
     let re = Regex::new(r"(?s)/// ?@osc-doc\n(.*?)(?:fn (\w+)[^\n]*\{)").unwrap();
     let osc_re = Regex::new(r"^.*///\s*OSC Address:\s*(.*)$").unwrap();
