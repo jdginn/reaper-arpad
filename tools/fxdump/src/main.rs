@@ -88,11 +88,6 @@ fn main() -> Result<(), Box<dyn Error>> {
                 panic!("OSC receive error: {:?}", e);
             }
         }
-
-        // If we haven't received messages in a while, assume we're done
-        if message_count > 0 && start_time.elapsed() > Duration::from_secs(TIMEOUT_SECS) {
-            break;
-        }
     }
 
     println!("Received {} OSC messages", message_count);
@@ -131,6 +126,20 @@ fn process_packet(
     }
 }
 
+fn ensure_param_exists(fx_entry: &mut FxInfo, param_idx: u32) -> &mut FxParam {
+    if let Some(pos) = fx_entry.params.iter().position(|p| p.index == param_idx) {
+        &mut fx_entry.params[pos]
+    } else {
+        fx_entry.params.push(FxParam {
+            name: String::new(),
+            index: param_idx,
+            min: 0.0,
+            max: 1.0,
+        });
+        fx_entry.params.last_mut().unwrap()
+    }
+}
+
 fn process_message(
     msg: &OscMessage,
     fx_data: &mut HashMap<String, FxInfo>,
@@ -165,17 +174,8 @@ fn process_message(
                             params: vec![],
                         });
 
-                    // Find or create param entry
-                    if let Some(param) = fx_entry.params.iter_mut().find(|p| p.index == param_idx) {
-                        param.name = param_name.clone();
-                    } else {
-                        fx_entry.params.push(FxParam {
-                            name: param_name.clone(),
-                            index: param_idx,
-                            min: 0.0,
-                            max: 1.0,
-                        });
-                    }
+                    let param = ensure_param_exists(fx_entry, param_idx);
+                    param.name = param_name.clone();
                 }
             }
         }
@@ -189,16 +189,8 @@ fn process_message(
                             params: vec![],
                         });
 
-                    if let Some(param) = fx_entry.params.iter_mut().find(|p| p.index == param_idx) {
-                        param.min = *min_val;
-                    } else {
-                        fx_entry.params.push(FxParam {
-                            name: String::new(),
-                            index: param_idx,
-                            min: *min_val,
-                            max: 1.0,
-                        });
-                    }
+                    let param = ensure_param_exists(fx_entry, param_idx);
+                    param.min = *min_val;
                 }
             }
         }
@@ -212,16 +204,8 @@ fn process_message(
                             params: vec![],
                         });
 
-                    if let Some(param) = fx_entry.params.iter_mut().find(|p| p.index == param_idx) {
-                        param.max = *max_val;
-                    } else {
-                        fx_entry.params.push(FxParam {
-                            name: String::new(),
-                            index: param_idx,
-                            min: 0.0,
-                            max: *max_val,
-                        });
-                    }
+                    let param = ensure_param_exists(fx_entry, param_idx);
+                    param.max = *max_val;
                 }
             }
         }
