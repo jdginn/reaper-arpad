@@ -260,6 +260,13 @@ impl ControlSurface for ArpadSurface {
                 self.osc_sender.send(packet).unwrap();
             });
     }
+    fn set_surface_solo(&self, args: reaper_medium::SetSurfaceSoloArgs) {
+        TrackSoloRoute::build_packets(args, &self.reaper)
+            .into_iter()
+            .for_each(|packet| {
+                self.osc_sender.send(packet).unwrap();
+            });
+    }
     fn ext_set_fx_param(&self, args: reaper_medium::ExtSetFxParamArgs) -> i32 {
         TrackFXParamValueRoute::build_packets(
             TrackFXParamArgs {
