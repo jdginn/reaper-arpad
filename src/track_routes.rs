@@ -47,7 +47,7 @@ impl OscRoute for NumTracksRoute {
 /// @queryable
 /// OSC Address: /track/all_guids
 /// - args:
-///   - guids (array of string): array of unique identifiers for all tracks in the project
+///   - guids (array of uuid): array of unique identifiers for all tracks in the project
 pub struct TrackAllGuidsRoute;
 pub struct TrackAllGuidsParams {}
 pub struct TrackAllGuidsArgs {
@@ -98,7 +98,7 @@ impl OscRoute for TrackAllGuidsRoute {
 /// @queryable
 /// OSC Address: /track/{track_guid}/index
 /// - params:
-///   - track_guid (string): unique identifier for the track
+///   - track_guid (uuid): unique identifier for the track
 /// - args:
 ///   - index (int): index of the track in the project according to reaper's mixer view
 pub struct TrackIndexRoute;
@@ -149,7 +149,7 @@ impl OscRoute for TrackIndexRoute {
 /// @writeable
 /// OSC Address: /track/{track_guid}/delete
 /// - params:
-///   - track_guid (string): unique identifier for the track
+///   - track_guid (uuid): unique identifier for the track
 pub struct TrackDeleteRoute;
 pub struct TrackDeleteParams {
     track_guid: String,
@@ -205,7 +205,7 @@ impl OscRoute for TrackDeleteRoute {
 /// @queryable
 /// OSC Address: /track/{track_guid}/name
 /// - params:
-///   - track_guid (string): unique identifier for the track
+///   - track_guid (uuid): unique identifier for the track
 /// - args:
 ///   - name (string): name of the track
 pub struct TrackNameRoute;
@@ -280,7 +280,7 @@ impl OscRoute for TrackNameRoute {
 /// @queryable
 /// OSC Address: /track/{track_guid}/selected
 /// - params:
-///   - track_guid (string): unique identifier for the track
+///   - track_guid (uuid): unique identifier for the track
 /// - args:
 ///   - selected (bool): true means track is selected
 pub struct TrackSelectedRoute;
@@ -343,7 +343,7 @@ impl OscRoute for TrackSelectedRoute {
 /// @queryable
 /// OSC Address: /track/{track_guid}/volume
 /// - params:
-///   - track_guid (string): unique identifier for the track
+///   - track_guid (uuid): unique identifier for the track
 /// - args:
 ///   - volume (float): volume of the track, normalized to 0 to 1.0
 pub struct TrackVolumeRoute;
@@ -421,7 +421,7 @@ impl OscRoute for TrackVolumeRoute {
 /// @queryable
 /// OSC Address: /track/{track_guid}/pan
 /// - params:
-///   - track_guid (string): unique identifier for the track
+///   - track_guid (uuid): unique identifier for the track
 /// - args:
 ///   - pan (float): pan of the track, normalized to -1.0 to 1.0
 pub struct TrackPanRoute;
@@ -488,7 +488,7 @@ impl OscRoute for TrackPanRoute {
 /// @queryable
 /// OSC Address: /track/{track_guid}/mute
 /// - params:
-///   - track_guid (string): unique identifier for the track
+///   - track_guid (uuid): unique identifier for the track
 /// - args:
 ///   - mute (bool): true means track is muted
 pub struct TrackMuteRoute;
@@ -555,7 +555,7 @@ impl OscRoute for TrackMuteRoute {
 /// @queryable
 /// OSC Address: /track/{track_guid}/solo
 /// - params:
-///   - track_guid (string): unique identifier for the track
+///   - track_guid (uuid): unique identifier for the track
 /// - args:
 ///   - solo (bool): true means track is soloed
 pub struct TrackSoloRoute;
@@ -622,7 +622,7 @@ impl OscRoute for TrackSoloRoute {
 /// @queryable
 /// OSC Address: /track/{track_guid}/rec-arm
 /// - params:
-///   - track_guid (string): unique identifier for the track
+///   - track_guid (uuid): unique identifier for the track
 /// - args:
 ///   - rec_arm (bool): true means track is armed for recording
 pub struct TrackRecArmRoute;
@@ -689,10 +689,10 @@ impl OscRoute for TrackRecArmRoute {
 /// @queryable
 /// OSC Address: /track/{track_guid}/send/{send_index}/guid
 /// - params:
-///   - track_guid (string): unique identifier for the track
+///   - track_guid (uuid): unique identifier for the track
 ///   - send_index (int): index of the send on the track
 /// - args:
-///   - guid (string): unique identifier for the send
+///   - guid (uuid): unique identifier for the send
 pub struct TrackSendGuidRoute;
 
 pub struct TrackSendGuidParams {
@@ -769,7 +769,7 @@ impl OscRoute for TrackSendGuidRoute {
 /// @queryable
 /// OSC Address: /track/{track_guid}/send/{send_index}/volume
 /// - params:
-///   - track_guid (string): unique identifier for the track
+///   - track_guid (uuid): unique identifier for the track
 ///   - send_index (int): index of the send on the track
 /// - args:
 ///   - volume (float): volume of the send, normalized to 0 to 1.
@@ -853,7 +853,7 @@ impl OscRoute for TrackSendVolumeRoute {
 /// @queryable
 /// OSC Address: /track/{track_guid}/send/{send_index}/pan
 /// - params:
-///   - track_guid (string): unique identifier for the track
+///   - track_guid (uuid): unique identifier for the track
 ///   - send_index (int): index of the send on the track
 /// - args:
 ///   - pan (float): pan of the send, normalized to -1.0 to 1.0
@@ -937,7 +937,7 @@ impl OscRoute for TrackSendPanRoute {
 /// @queryable
 /// OSC Address: /track/{track_guid}/color
 /// - params:
-///   - track_guid (string): unique identifier for the track
+///   - track_guid (uuid): unique identifier for the track
 /// - args:
 ///   - color (int): color of the track, represented as an RGB integer
 pub struct TrackColorRoute;

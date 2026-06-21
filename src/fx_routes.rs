@@ -56,10 +56,10 @@ pub struct TrackFXParamArgs {
 /// @queryable
 /// OSC Address: /track/{track_guid}/fx/{fx_idx}/guid
 /// - params:
-///   - track_guid (string): unique identifier for the track
+///   - track_guid (uuid): unique identifier for the track
 ///   - fx_idx (int): index of the FX on the track
 /// - args:
-///   - guid (string): unique identifier for the FX
+///   - guid (uuid): unique identifier for the FX
 // TODO: make this writeable to allow changing the FX in this slot.
 // TODO: add a route to set FX by name.
 pub struct TrackFXGuidRoute;
@@ -106,7 +106,7 @@ impl OscRoute for TrackFXGuidRoute {
 /// @queryable
 /// OSC Address: /track/{track_guid}/fx/{fx_idx}/name
 /// - params:
-///   - track_guid (string): unique identifier for the track
+///   - track_guid (uuid): unique identifier for the track
 ///   - fx_idx (int): index of the FX on the track
 /// - args:
 ///   - name (string): name of the FX
@@ -156,7 +156,7 @@ impl OscRoute for TrackFXNameRoute {
 /// @queryable
 /// OSC Address: /track/{track_guid}/fx/{fx_idx}/enabled
 /// - params:
-///   - track_guid (string): unique identifier for the track
+///   - track_guid (uuid): unique identifier for the track
 ///   - fx_idx (int): index of the FX on the track
 /// - args:
 ///   - enabled (bool): true if the FX is enabled
@@ -226,7 +226,7 @@ impl OscRoute for TrackFXEnabledRoute {
 /// @queryable
 /// OSC Address: /track/{track_guid}/fx/{fx_idx}/param_count
 /// - params:
-///   - track_guid (string): unique identifier for the track
+///   - track_guid (uuid): unique identifier for the track
 ///   - fx_idx (int): index of the FX on the track
 /// - args:
 ///   - param_count (int): number of parameters for the FX
@@ -272,7 +272,7 @@ impl OscRoute for TrackFXParamCountRoute {
 /// @queryable
 /// OSC Address: /track/{track_guid}/fx/{fx_idx}/param/{param_idx}/name
 /// - params:
-///  - track_guid (string): unique identifier for the track
+///  - track_guid (uuid): unique identifier for the track
 ///  - fx_idx (int): index of the FX on the track
 ///  - param_idx (int): index of the parameter
 ///  - args:
@@ -326,7 +326,7 @@ impl OscRoute for TrackFXParamNameRoute {
 /// @queryable
 /// OSC Address: /track/{track_guid}/fx/{fx_idx}/param/{param_idx}/value
 /// - params:
-///   - track_guid (string): unique identifier for the track
+///   - track_guid (uuid): unique identifier for the track
 ///   - fx_idx (int): index of the FX on the track
 ///   - param_idx (int): index of the parameter
 /// - args:
@@ -401,7 +401,7 @@ impl OscRoute for TrackFXParamValueRoute {
 /// @queryable
 /// OSC Address: /track/{track_guid}/fx/{fx_idx}/param/{param_idx}/min
 /// - params:
-///   - track_guid (string): unique identifier for the track
+///   - track_guid (uuid): unique identifier for the track
 ///   - fx_idx (int): index of the FX on the track
 ///   - param_idx (int): index of the parameter
 /// - args:
@@ -456,7 +456,7 @@ impl OscRoute for TrackFXParamMinRoute {
 /// @queryable
 /// OSC Address: /track/{track_guid}/fx/{fx_idx}/param/{param_idx}/max
 /// - params:
-///   - track_guid (string): unique identifier for the track
+///   - track_guid (uuid): unique identifier for the track
 ///   - fx_idx (int): index of the FX on the track
 ///   - param_idx (int): index of the parameter
 /// - args:
@@ -513,11 +513,11 @@ impl OscRoute for TrackFXParamMaxRoute {
 /// @queryable
 /// OSC Address: /track/{track_guid}/fx/{fx_idx}/info
 /// - params:
-///   - track_guid (string): unique identifier for the track
+///   - track_guid (uuid): unique identifier for the track
 ///   - fx_idx (int): index of the FX on the track
 ///
 /// Replies with many OSC messages reporting the folowing:
-///   guid (string): unique identifier for the FX
+///   guid (uuid): unique identifier for the FX
 ///   name (string): name of the FX
 ///   param_count (int): number of parameters for the FX
 ///   for each param:

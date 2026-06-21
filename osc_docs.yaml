@@ -12,6 +12,7 @@
 # The following parameter types are supported:
 # - int: 32-bit integer
 # - string: UTF-8 string
+# - uuid: A string representing a UUID (universally unique identifier) 
 #
 # Routes may be used in 3 ways, each of which is indicated by a corresponding access tag:
 # 1. readable: The route transmits data FROM the application. The client can listen for messages on this route.
@@ -46,7 +47,7 @@
 - osc_address: /track/{track_guid}/index
   params:
   - name: track_guid
-    type: string
+    type: uuid
     description: unique identifier for the track
   arguments:
   - name: index
@@ -58,7 +59,7 @@
 - osc_address: /track/{track_guid}/delete
   params:
   - name: track_guid
-    type: string
+    type: uuid
     description: unique identifier for the track
   arguments: []
   access_tags:
@@ -66,7 +67,7 @@
 - osc_address: /track/{track_guid}/name
   params:
   - name: track_guid
-    type: string
+    type: uuid
     description: unique identifier for the track
   arguments:
   - name: name
@@ -79,7 +80,7 @@
 - osc_address: /track/{track_guid}/selected
   params:
   - name: track_guid
-    type: string
+    type: uuid
     description: unique identifier for the track
   arguments:
   - name: selected
@@ -92,7 +93,7 @@
 - osc_address: /track/{track_guid}/volume
   params:
   - name: track_guid
-    type: string
+    type: uuid
     description: unique identifier for the track
   arguments:
   - name: volume
@@ -105,7 +106,7 @@
 - osc_address: /track/{track_guid}/pan
   params:
   - name: track_guid
-    type: string
+    type: uuid
     description: unique identifier for the track
   arguments:
   - name: pan
@@ -118,7 +119,7 @@
 - osc_address: /track/{track_guid}/mute
   params:
   - name: track_guid
-    type: string
+    type: uuid
     description: unique identifier for the track
   arguments:
   - name: mute
@@ -131,7 +132,7 @@
 - osc_address: /track/{track_guid}/solo
   params:
   - name: track_guid
-    type: string
+    type: uuid
     description: unique identifier for the track
   arguments:
   - name: solo
@@ -144,7 +145,7 @@
 - osc_address: /track/{track_guid}/rec-arm
   params:
   - name: track_guid
-    type: string
+    type: uuid
     description: unique identifier for the track
   arguments:
   - name: rec_arm
@@ -157,14 +158,14 @@
 - osc_address: /track/{track_guid}/send/{send_index}/guid
   params:
   - name: track_guid
-    type: string
+    type: uuid
     description: unique identifier for the track
   - name: send_index
     type: int
     description: index of the send on the track
   arguments:
   - name: guid
-    type: string
+    type: uuid
     description: unique identifier for the send
   access_tags:
   - readable
@@ -172,7 +173,7 @@
 - osc_address: /track/{track_guid}/send/{send_index}/volume
   params:
   - name: track_guid
-    type: string
+    type: uuid
     description: unique identifier for the track
   - name: send_index
     type: int
@@ -188,7 +189,7 @@
 - osc_address: /track/{track_guid}/send/{send_index}/pan
   params:
   - name: track_guid
-    type: string
+    type: uuid
     description: unique identifier for the track
   - name: send_index
     type: int
@@ -204,7 +205,7 @@
 - osc_address: /track/{track_guid}/color
   params:
   - name: track_guid
-    type: string
+    type: uuid
     description: unique identifier for the track
   arguments:
   - name: color
@@ -217,14 +218,14 @@
 - osc_address: /track/{track_guid}/fx/{fx_idx}/guid
   params:
   - name: track_guid
-    type: string
+    type: uuid
     description: unique identifier for the track
   - name: fx_idx
     type: int
     description: index of the FX on the track
   arguments:
   - name: guid
-    type: string
+    type: uuid
     description: unique identifier for the FX
   access_tags:
   - readable
@@ -232,7 +233,7 @@
 - osc_address: /track/{track_guid}/fx/{fx_idx}/name
   params:
   - name: track_guid
-    type: string
+    type: uuid
     description: unique identifier for the track
   - name: fx_idx
     type: int
@@ -247,7 +248,7 @@
 - osc_address: /track/{track_guid}/fx/{fx_idx}/enabled
   params:
   - name: track_guid
-    type: string
+    type: uuid
     description: unique identifier for the track
   - name: fx_idx
     type: int
@@ -263,7 +264,7 @@
 - osc_address: /track/{track_guid}/fx/{fx_idx}/param_count
   params:
   - name: track_guid
-    type: string
+    type: uuid
     description: unique identifier for the track
   - name: fx_idx
     type: int
@@ -278,7 +279,7 @@
 - osc_address: /track/{track_guid}/fx/{fx_idx}/param/{param_idx}/name
   params:
   - name: track_guid
-    type: string
+    type: uuid
     description: unique identifier for the track
   - name: fx_idx
     type: int
@@ -296,7 +297,7 @@
 - osc_address: /track/{track_guid}/fx/{fx_idx}/param/{param_idx}/value
   params:
   - name: track_guid
-    type: string
+    type: uuid
     description: unique identifier for the track
   - name: fx_idx
     type: int
@@ -315,7 +316,7 @@
 - osc_address: /track/{track_guid}/fx/{fx_idx}/param/{param_idx}/min
   params:
   - name: track_guid
-    type: string
+    type: uuid
     description: unique identifier for the track
   - name: fx_idx
     type: int
@@ -333,7 +334,7 @@
 - osc_address: /track/{track_guid}/fx/{fx_idx}/param/{param_idx}/max
   params:
   - name: track_guid
-    type: string
+    type: uuid
     description: unique identifier for the track
   - name: fx_idx
     type: int
@@ -351,7 +352,7 @@
 - osc_address: /track/{track_guid}/fx/{fx_idx}/info
   params:
   - name: track_guid
-    type: string
+    type: uuid
     description: unique identifier for the track
   - name: fx_idx
     type: int

@@ -35,6 +35,7 @@ const YAML_HEADER: &str = r#"
 # The following parameter types are supported:
 # - int: 32-bit integer
 # - string: UTF-8 string
+# - uuid: A string representing a UUID (universally unique identifier) 
 #
 # Routes may be used in 3 ways, each of which is indicated by a corresponding access tag:
 # 1. readable: The route transmits data FROM the application. The client can listen for messages on this route.
@@ -63,6 +64,7 @@ const YAML_HEADER: &str = r#"
 /// - int: 32-bit integer
 /// - float: 32-bit float
 /// - string: UTF-8 string
+/// - uuid: A string representing a UUID (universally unique identifier)
 /// - bool: boolean
 ///
 /// Practically, each route typically accepts or receives a single argument, although this is not strictly
@@ -109,7 +111,7 @@ const YAML_HEADER: &str = r#"
 /// /// Sets the value of a track FX parameter.
 /// /// OSC Address: /track/{track_guid}/fx/{fx_index}/param/{param_index}/value
 /// /// - params:
-/// ///   - track_guid (string): The GUID of the track.
+/// ///   - track_guid (uuid): The GUID of the track.
 /// ///   - fx_index (int): The index of the FX on the track.
 /// ///   - param_index (int): The index of the parameter on the FX.
 /// /// - args:
@@ -121,7 +123,7 @@ const YAML_HEADER: &str = r#"
 ///   - Sets the value of a track FX parameter.
 ///   params:
 ///   - name: track_guid
-///     type: string
+///     type: uuid
 ///     description: unique identifier for the track
 ///   - name: fx_index
 ///     type: int
@@ -360,7 +362,7 @@ fn full_access() {
 /// Sets the value of a track FX parameter.
 /// OSC Address: /track/{track_guid}/fx/{fx_index}/param/{param_index}/value
 /// - params:
-///   - track_guid (string): The GUID of the track.
+///   - track_guid (uuid): The GUID of the track.
 ///   - fx_index (int): The index of the FX on the track.
 ///   - param_index (int): The index of the parameter on the FX.
 /// - args:
@@ -375,7 +377,7 @@ fn set_fx_param() {
         );
         assert_eq!(docs[0].params.len(), 3);
         assert_eq!(docs[0].params[0].name, "track_guid");
-        assert_eq!(docs[0].params[0].r#type, "string");
+        assert_eq!(docs[0].params[0].r#type, "uuid");
         assert_eq!(docs[0].params[1].name, "fx_index");
         assert_eq!(docs[0].params[1].r#type, "int");
         assert_eq!(docs[0].params[2].name, "param_index");
