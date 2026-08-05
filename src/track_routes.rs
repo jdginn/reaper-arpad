@@ -146,6 +146,7 @@ impl OscRoute for TrackIndexRoute {
 }
 
 /// @osc-doc
+/// @readable
 /// @writeable
 /// OSC Address: /track/{track_guid}/delete
 /// - params:
