@@ -63,6 +63,7 @@
     description: unique identifier for the track
   arguments: []
   access_tags:
+  - readable
   - writeable
 - osc_address: /track/{track_guid}/name
   params:
@@ -208,9 +209,15 @@
     type: uuid
     description: unique identifier for the track
   arguments:
-  - name: color
+  - name: r
     type: int
-    description: color of the track, represented as an RGB integer
+    description: encoded from u8
+  - name: g
+    type: int
+    description: encoded from u8
+  - name: b
+    type: int
+    description: encoded from u8
   access_tags:
   - readable
   - writeable

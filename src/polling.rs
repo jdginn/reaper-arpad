@@ -57,13 +57,13 @@ pub trait PollSource {
     fn poll_and_send(&mut self, osc_sender: &Sender<OscPacket>) -> Result<(), PollError>;
 }
 
-struct TrackColorPollSource {
+pub struct TrackColorPollSource {
     reaper: Reaper,
-    prev_colors: HashMap<String, reaper_medium::NativeColor>,
+    prev_colors: HashMap<String, reaper_medium::RgbColor>,
 }
 
 impl TrackColorPollSource {
-    fn new(reaper: Reaper) -> Self {
+    pub fn new(reaper: Reaper) -> Self {
         Self {
             reaper,
             prev_colors: HashMap::new(),
@@ -78,13 +78,16 @@ impl PollSource for TrackColorPollSource {
             let guid = get_track_guid(&self.reaper, track);
             let color =
                 unsafe { self.reaper.get_set_media_track_info_get_custom_color(track) }.color;
+            let rgb_color = self.reaper.color_from_native(color);
             if let Some(prev_color) = self.prev_colors.get(&guid) {
-                if *prev_color != color {
-                    self.prev_colors.insert(guid.clone(), color);
+                if *prev_color != rgb_color {
+                    self.prev_colors.insert(guid.clone(), rgb_color);
                     track_routes::TrackColorRoute::build_packets(
                         track_routes::TrackColorArgs {
                             track,
-                            color: color.to_raw(),
+                            r: rgb_color.r,
+                            g: rgb_color.g,
+                            b: rgb_color.b,
                         },
                         &self.reaper,
                     )
@@ -97,11 +100,13 @@ impl PollSource for TrackColorPollSource {
                     });
                 }
             } else {
-                self.prev_colors.insert(guid.clone(), color);
+                self.prev_colors.insert(guid.clone(), rgb_color);
                 track_routes::TrackColorRoute::build_packets(
                     track_routes::TrackColorArgs {
                         track,
-                        color: color.to_raw(),
+                        r: rgb_color.r,
+                        g: rgb_color.g,
+                        b: rgb_color.b,
                     },
                     &self.reaper,
                 )

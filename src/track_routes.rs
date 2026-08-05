@@ -801,14 +801,21 @@ impl OscRoute for TrackSendVolumeRoute {
         reaper: &Reaper,
     ) -> Result<(), ReceiverError> {
         let track = get_track_by_guid(reaper, &params.track_guid)?;
+        let volume_raw = msg.args[0].clone().float().ok_or_else(|| {
+            ReceiverError::BadValue("Invalid volume value, expected a float".to_string())
+        })?;
+        let slider_value = reaper_medium::VolumeSliderValue::new(
+            volume_raw as f64 * reaper_medium::VolumeSliderValue::TWELVE_DB.get(),
+        );
+        let volume_db = reaper.slider2db(slider_value);
+        let volume_linear = volume_db.to_linear_volume_value();
         unsafe {
             let track_send_ref = reaper_medium::TrackSendRef::Send(
                 u32::try_from(params.send_index)
                     .map_err(|_| ReceiverError::BadValue("Invalid send index".to_string()))?,
             );
-            let volume =
-                reaper_medium::ReaperVolumeValue::new(msg.args[0].clone().float().unwrap() as f64)
-                    .map_err(|_| ReceiverError::BadValue("Invalid volume value".to_string()))?;
+            let volume = reaper_medium::ReaperVolumeValue::new(volume_linear.into_inner())
+                .map_err(|_| ReceiverError::BadValue("Invalid volume value".to_string()))?;
             reaper.set_track_send_ui_vol(
                 track,
                 track_send_ref,
@@ -821,9 +828,12 @@ impl OscRoute for TrackSendVolumeRoute {
 
     fn build_packets(args: Self::SendParams, reaper: &Reaper) -> Vec<OscPacket> {
         let track_guid = get_track_guid(reaper, args.track);
+        let vol_db = args.volume.to_db_ex(reaper_medium::Db::MINUS_150_DB);
+        let vol_lin = reaper.db2slider(vol_db);
+        let vol_norm = vol_lin.get() / reaper_medium::VolumeSliderValue::TWELVE_DB.get();
         vec![OscPacket::Message(OscMessage {
             addr: format!("/track/{}/send/{}/volume", track_guid, args.send_index).to_string(),
-            args: vec![OscType::Float(args.volume.into_inner() as f32)],
+            args: vec![OscType::Float(vol_norm as f32)],
         })]
     }
 
@@ -940,14 +950,18 @@ impl OscRoute for TrackSendPanRoute {
 /// - params:
 ///   - track_guid (uuid): unique identifier for the track
 /// - args:
-///   - color (int): color of the track, represented as an RGB integer
+///   - r (int): encoded from u8
+///   - g (int): encoded from u8
+///   - b (int): encoded from u8
 pub struct TrackColorRoute;
 pub struct TrackColorParams {
     track_guid: String,
 }
 pub struct TrackColorArgs {
     pub track: reaper_medium::MediaTrack,
-    pub color: i32,
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
 }
 
 impl OscRoute for TrackColorRoute {
@@ -970,13 +984,20 @@ impl OscRoute for TrackColorRoute {
     ) -> Result<(), ReceiverError> {
         let track = get_track_by_guid(reaper, &params.track_guid)?;
         unsafe {
-            let int_arg = msg.args[0].clone().int().ok_or_else(|| {
-                ReceiverError::BadValue("Invalid color value, expected an integer".to_string())
-            })?;
+            let r = msg.args[0].clone().int().ok_or_else(|| {
+                ReceiverError::BadValue("Invalid red value, expected an integer".to_string())
+            })? as u8;
+            let g = msg.args[1].clone().int().ok_or_else(|| {
+                ReceiverError::BadValue("Invalid green value, expected an integer".to_string())
+            })? as u8;
+            let b = msg.args[2].clone().int().ok_or_else(|| {
+                ReceiverError::BadValue("Invalid blue value, expected an integer".to_string())
+            })? as u8;
+            let rgb_color = reaper_medium::RgbColor { r, g, b };
             reaper.get_set_media_track_info_set_custom_color(
                 track,
                 reaper_medium::NativeColorValue {
-                    color: reaper_medium::NativeColor::new(int_arg),
+                    color: reaper.color_to_native(rgb_color),
                     is_used: true,
                 },
             );
@@ -988,7 +1009,11 @@ impl OscRoute for TrackColorRoute {
         let track_guid = get_track_guid(reaper, args.track);
         vec![OscPacket::Message(OscMessage {
             addr: format!("/track/{}/color", track_guid).to_string(),
-            args: vec![OscType::Int(args.color)],
+            args: vec![
+                OscType::Int(args.r as i32),
+                OscType::Int(args.g as i32),
+                OscType::Int(args.b as i32),
+            ],
         })]
     }
 
@@ -999,9 +1024,12 @@ impl OscRoute for TrackColorRoute {
         let track = get_track_by_guid(reaper, &params.track_guid)?;
         unsafe {
             let color = reaper.get_set_media_track_info_get_custom_color(track);
+            let rgb_color = reaper.color_from_native(color.color);
             Ok(TrackColorArgs {
                 track,
-                color: color.color.to_raw(),
+                r: rgb_color.r,
+                g: rgb_color.g,
+                b: rgb_color.b,
             })
         }
     }

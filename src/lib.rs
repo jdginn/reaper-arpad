@@ -227,10 +227,13 @@ impl ControlSurface for ArpadSurface {
                 .get_set_media_track_info_get_custom_color(args.track)
                 .color
         };
+        let rgb_color = self.reaper.color_from_native(color);
         TrackColorRoute::build_packets(
             TrackColorArgs {
                 track: args.track,
-                color: color.to_raw(),
+                r: rgb_color.r,
+                g: rgb_color.g,
+                b: rgb_color.b,
             },
             &self.reaper,
         )
@@ -266,6 +269,36 @@ impl ControlSurface for ArpadSurface {
             .for_each(|packet| {
                 self.osc_sender.send(packet).unwrap();
             });
+    }
+    fn set_surface_rec_arm(&self, args: reaper_medium::SetSurfaceRecArmArgs) {
+        TrackRecArmRoute::build_packets(args, &self.reaper)
+            .into_iter()
+            .for_each(|packet| {
+                self.osc_sender.send(packet).unwrap();
+            });
+    }
+    fn set_surface_selected(&self, args: reaper_medium::SetSurfaceSelectedArgs) {
+        TrackSelectedRoute::build_packets(args, &self.reaper)
+            .into_iter()
+            .for_each(|packet| {
+                self.osc_sender.send(packet).unwrap();
+            });
+    }
+    fn ext_set_send_volume(&self, args: reaper_medium::ExtSetSendVolumeArgs) -> i32 {
+        TrackSendVolumeRoute::build_packets(args, &self.reaper)
+            .into_iter()
+            .for_each(|packet| {
+                self.osc_sender.send(packet).unwrap();
+            });
+        0
+    }
+    fn ext_set_send_pan(&self, args: reaper_medium::ExtSetSendPanArgs) -> i32 {
+        TrackSendPanRoute::build_packets(args, &self.reaper)
+            .into_iter()
+            .for_each(|packet| {
+                self.osc_sender.send(packet).unwrap();
+            });
+        0
     }
     fn ext_set_fx_param(&self, args: reaper_medium::ExtSetFxParamArgs) -> i32 {
         TrackFXParamValueRoute::build_packets(
@@ -328,6 +361,7 @@ impl ControlSurface for ArpadSurface {
 fn start_sender_thread(dev_addr: SocketAddrV4, sock: UdpSocket, osc_receiver: Receiver<OscPacket>) {
     thread::spawn(move || {
         for msg in osc_receiver.iter() {
+            println!("Sending OSC message: {:?}", msg);
             if let Ok(buf) = encoder::encode(&msg) {
                 match sock.send_to(buf.as_slice(), dev_addr) {
                     Ok(_) => {}
@@ -394,6 +428,7 @@ fn plugin_main(context: PluginContext) -> Result<(), Box<dyn Error>> {
     let mut session = reaper_medium::ReaperSession::load(context);
     let reaper = session.reaper().clone();
     let mut poll_manager = PollManager::new();
+    poll_manager.add_source(Box::new(TrackColorPollSource::new(reaper.clone())));
     // poll_manager.add_source(Box::new(TrackColorPollSource::new(reaper.clone())));
     //  TODO: add various polling sources here
     let mut arpad = ArpadSurface {
