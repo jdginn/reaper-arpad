@@ -1038,8 +1038,8 @@ impl OscRoute for TrackColorRoute {
 /// @osc-doc
 /// @readable
 /// @queryable
-/// OSC Address: /all_tracks
 /// Replies with many OSC messages reporting all state for all tracks
+/// OSC Address: /all_tracks
 pub struct AllTracksRoute;
 pub struct AllTracksParams {}
 pub struct AllTracksArgs {}

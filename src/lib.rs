@@ -24,6 +24,9 @@ use utils::{get_track_by_guid, get_track_guid, get_track_idx};
 
 mod registries;
 
+mod server_routes;
+use server_routes::*;
+
 mod track_routes;
 use track_routes::*;
 
@@ -374,6 +377,20 @@ fn start_sender_thread(dev_addr: SocketAddrV4, sock: UdpSocket, osc_receiver: Re
     });
 }
 
+fn start_heartbeat_thread(dev_addr: SocketAddrV4, sock: UdpSocket) {
+    thread::spawn(move || loop {
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        if let Ok(buf) = encoder::encode(&HelloRoute::build_packet()) {
+            match sock.send_to(buf.as_slice(), dev_addr) {
+                Ok(_) => {}
+                Err(e) => {
+                    eprintln!("OSC send error: {:?}", e);
+                }
+            }
+        }
+    });
+}
+
 fn parse_osc_address(addr: &str) -> Vec<&str> {
     addr.split('/').filter(|s| !s.is_empty()).collect()
 }
@@ -432,9 +449,9 @@ fn plugin_main(context: PluginContext) -> Result<(), Box<dyn Error>> {
     let reaper = session.reaper().clone();
     let mut poll_manager = PollManager::new();
     poll_manager.add_source(Box::new(TrackColorPollSource::new(reaper.clone())));
-    //  TODO: add various polling sources here
+    // add additional polling sources here
     let mut arpad = ArpadSurface {
-        sock,
+        sock: sock.try_clone().unwrap(),
         osc_sender,
         reaper: reaper.clone(),
         poll_manager,
@@ -448,6 +465,8 @@ fn plugin_main(context: PluginContext) -> Result<(), Box<dyn Error>> {
         }
     }
     let _ = REAPER_SESSION.set(Fragile::new(session));
+
+    start_heartbeat_thread(dev_addr, sock.try_clone().unwrap());
 
     Ok(())
 }

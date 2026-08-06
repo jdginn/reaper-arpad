@@ -222,6 +222,37 @@
   - readable
   - writeable
   - queryable
+- osc_address: /all_tracks
+  params: []
+  arguments: []
+  access_tags:
+  - readable
+  - queryable
+  comments:
+  - Replies with many OSC messages reporting all state for all tracks
+- osc_address: /server/hello
+  params: []
+  arguments: []
+  access_tags:
+  - readable
+  comments:
+  - Sent periodically by the server, alerting clients that the server is still alive. Functions both
+  - as the beginning of a handshake and a heartbeat message.
+- osc_address: /server/goodbye
+  params: []
+  arguments: []
+  access_tags:
+  - readable
+  comments:
+  - Sent by the server when it shuts down.
+- osc_address: /server/reset
+  params: []
+  arguments: []
+  access_tags:
+  - readable
+  comments:
+  - Sent by the server to indicate that all currently accumulated state is invalid. Practically,
+  - this happens when we open a new Reaper project.
 - osc_address: /track/{track_guid}/fx/{fx_idx}/guid
   params:
   - name: track_guid
@@ -367,6 +398,17 @@
   arguments: []
   access_tags:
   - queryable
+  comments:
+  - 'Replies with many OSC messages reporting the folowing:'
+  - 'guid (uuid): unique identifier for the FX'
+  - 'name (string): name of the FX'
+  - 'param_count (int): number of parameters for the FX'
+  - 'for each param:'
+  - 'param_idx (int): index of the parameter'
+  - 'param_name (string): name of the parameter'
+  - 'param_value (float): current value of the parameter, normalized to 0.'
+  - 'param_min (float): minimum value of the parameter, normalized to 0. TODO: what here?'
+  - 'param_max (float): maximum value of the parameter, normalized to 1.0'
 - osc_address: /fxinfo/{ident}/name
   params:
   - name: ident
@@ -440,3 +482,5 @@
   arguments: []
   access_tags:
   - queryable
+  comments:
+  - 'Replies with many OSC messages reporting the following for all FX on all tracks:'

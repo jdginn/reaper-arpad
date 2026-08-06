@@ -511,11 +511,6 @@ impl OscRoute for TrackFXParamMaxRoute {
 
 /// @osc-doc
 /// @queryable
-/// OSC Address: /track/{track_guid}/fx/{fx_idx}/info
-/// - params:
-///   - track_guid (uuid): unique identifier for the track
-///   - fx_idx (int): index of the FX on the track
-///
 /// Replies with many OSC messages reporting the folowing:
 ///   guid (uuid): unique identifier for the FX
 ///   name (string): name of the FX
@@ -526,6 +521,10 @@ impl OscRoute for TrackFXParamMaxRoute {
 ///     param_value (float): current value of the parameter, normalized to 0.
 ///     param_min (float): minimum value of the parameter, normalized to 0. TODO: what here?
 ///     param_max (float): maximum value of the parameter, normalized to 1.0
+/// OSC Address: /track/{track_guid}/fx/{fx_idx}/info
+/// - params:
+///   - track_guid (uuid): unique identifier for the track
+///   - fx_idx (int): index of the FX on the track
 pub struct TrackFXInfoRoute;
 pub struct TrackFXInfoParams {
     track_guid: String,
@@ -889,8 +888,8 @@ impl OscRoute for FxInfoParamMaxRoute {
 
 /// @osc-doc
 /// @queryable
-/// OSC Address: /fxinfo
 /// Replies with many OSC messages reporting the following for all FX on all tracks:
+/// OSC Address: /fxinfo
 pub struct AllFxInfoRoute;
 pub struct AllFxInfoParams;
 pub struct AllFxInfoArgs {
