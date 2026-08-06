@@ -1034,3 +1034,162 @@ impl OscRoute for TrackColorRoute {
         }
     }
 }
+
+/// @osc-doc
+/// @readable
+/// @queryable
+/// OSC Address: /all_tracks
+/// Replies with many OSC messages reporting all state for all tracks
+pub struct AllTracksRoute;
+pub struct AllTracksParams {}
+pub struct AllTracksArgs {}
+impl OscRoute for AllTracksRoute {
+    type SendParams = AllTracksArgs;
+    type ReceiveParams = AllTracksParams;
+
+    fn matcher(segments: &[&str]) -> Option<Self::ReceiveParams> {
+        match segments {
+            ["all_tracks"] => Some(AllTracksParams {}),
+            _ => None,
+        }
+    }
+
+    fn build_packets(_: Self::SendParams, reaper: &Reaper) -> Vec<OscPacket> {
+        let mut packets = Vec::new();
+        let num_tracks = reaper.count_tracks(reaper_medium::ProjectContext::CurrentProject);
+        for i in 0..num_tracks {
+            let track = reaper
+                .get_track(reaper_medium::ProjectContext::CurrentProject, i)
+                .unwrap();
+            let track_guid = get_track_guid(reaper, track);
+            // Collect all the state for this track and build packets
+            let index_args = TrackIndexRoute::collect_send_params(
+                &TrackIndexParams {
+                    track_guid: track_guid.clone(),
+                },
+                reaper,
+            )
+            .unwrap();
+            packets.extend(TrackIndexRoute::build_packets(index_args, reaper));
+
+            let name_args = TrackNameRoute::collect_send_params(
+                &TrackNameParams {
+                    track_guid: track_guid.clone(),
+                },
+                reaper,
+            )
+            .unwrap();
+            packets.extend(TrackNameRoute::build_packets(name_args, reaper));
+
+            let selected_args = TrackSelectedRoute::collect_send_params(
+                &TrackSelectedParams {
+                    track_guid: track_guid.clone(),
+                },
+                reaper,
+            )
+            .unwrap();
+            packets.extend(TrackSelectedRoute::build_packets(selected_args, reaper));
+
+            let volume_args = TrackVolumeRoute::collect_send_params(
+                &TrackVolumeParams {
+                    track_guid: track_guid.clone(),
+                },
+                reaper,
+            )
+            .unwrap();
+            packets.extend(TrackVolumeRoute::build_packets(volume_args, reaper));
+
+            let pan_args = TrackPanRoute::collect_send_params(
+                &TrackPanParams {
+                    track_guid: track_guid.clone(),
+                },
+                reaper,
+            )
+            .unwrap();
+            packets.extend(TrackPanRoute::build_packets(pan_args, reaper));
+
+            let mute_args = TrackMuteRoute::collect_send_params(
+                &TrackMuteParams {
+                    track_guid: track_guid.clone(),
+                },
+                reaper,
+            )
+            .unwrap();
+            packets.extend(TrackMuteRoute::build_packets(mute_args, reaper));
+
+            let solo_args = TrackSoloRoute::collect_send_params(
+                &TrackSoloParams {
+                    track_guid: track_guid.clone(),
+                },
+                reaper,
+            )
+            .unwrap();
+            packets.extend(TrackSoloRoute::build_packets(solo_args, reaper));
+
+            let rec_arm_args = TrackRecArmRoute::collect_send_params(
+                &TrackRecArmParams {
+                    track_guid: track_guid.clone(),
+                },
+                reaper,
+            )
+            .unwrap();
+            packets.extend(TrackRecArmRoute::build_packets(rec_arm_args, reaper));
+
+            let color_args = TrackColorRoute::collect_send_params(
+                &TrackColorParams {
+                    track_guid: track_guid.clone(),
+                },
+                reaper,
+            )
+            .unwrap();
+            packets.extend(TrackColorRoute::build_packets(color_args, reaper));
+
+            let track_send_count = unsafe {
+                reaper.get_track_num_sends(track, reaper_medium::TrackSendCategory::Send)
+            };
+            for send_index in 0..track_send_count {
+                let send_guid_args = TrackSendGuidRoute::collect_send_params(
+                    &TrackSendGuidParams {
+                        track_guid: track_guid.clone(),
+                        send_index: send_index as i32,
+                    },
+                    reaper,
+                )
+                .unwrap();
+                packets.extend(TrackSendGuidRoute::build_packets(send_guid_args, reaper));
+
+                let send_volume_args = TrackSendVolumeRoute::collect_send_params(
+                    &TrackSendVolumeParams {
+                        track_guid: track_guid.clone(),
+                        send_index: send_index as i32,
+                    },
+                    reaper,
+                )
+                .unwrap();
+                packets.extend(TrackSendVolumeRoute::build_packets(
+                    send_volume_args,
+                    reaper,
+                ));
+
+                let send_pan_args = TrackSendPanRoute::collect_send_params(
+                    &TrackSendPanParams {
+                        track_guid: track_guid.clone(),
+                        send_index: send_index as i32,
+                    },
+                    reaper,
+                )
+                .unwrap();
+                packets.extend(TrackSendPanRoute::build_packets(send_pan_args, reaper));
+            }
+            // TODO: add fx routes
+        }
+        packets
+    }
+
+    fn collect_send_params(
+        params: &Self::ReceiveParams,
+        reaper: &Reaper,
+    ) -> Result<Self::SendParams, RouteError> {
+        Ok(AllTracksArgs {})
+    }
+}

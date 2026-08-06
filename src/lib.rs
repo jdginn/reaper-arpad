@@ -73,7 +73,7 @@ pub(crate) trait OscRoute {
 
     fn matcher(_segments: &[&str]) -> Option<Self::ReceiveParams> {
         // Default case is to do nothing if not @writeable or @queryable
-        return None;
+        None
     }
     fn receive(
         _params: Self::ReceiveParams,
@@ -383,6 +383,8 @@ fn handle_packet(reaper: Reaper, packet: OscPacket, osc_sender: &Sender<OscPacke
         OscPacket::Message(msg) => {
             println!("OSC message: {:?}", msg);
             let segments = parse_osc_address(&msg.addr);
+            dispatch_route::<NumTracksRoute>(&segments, &msg, &reaper, osc_sender);
+            dispatch_route::<TrackAllGuidsRoute>(&segments, &msg, &reaper, osc_sender);
             dispatch_route::<TrackNameRoute>(&segments, &msg, &reaper, osc_sender);
             dispatch_route::<TrackSelectedRoute>(&segments, &msg, &reaper, osc_sender);
             dispatch_route::<TrackVolumeRoute>(&segments, &msg, &reaper, osc_sender);
@@ -403,6 +405,7 @@ fn handle_packet(reaper: Reaper, packet: OscPacket, osc_sender: &Sender<OscPacke
             dispatch_route::<TrackFXParamMaxRoute>(&segments, &msg, &reaper, osc_sender);
             dispatch_route::<TrackFXInfoRoute>(&segments, &msg, &reaper, osc_sender);
             dispatch_route::<AllFxInfoRoute>(&segments, &msg, &reaper, osc_sender);
+            dispatch_route::<AllTracksRoute>(&segments, &msg, &reaper, osc_sender);
         }
         OscPacket::Bundle(bundle) => {
             println!("OSC bundle: {:?}", bundle);
@@ -429,7 +432,6 @@ fn plugin_main(context: PluginContext) -> Result<(), Box<dyn Error>> {
     let reaper = session.reaper().clone();
     let mut poll_manager = PollManager::new();
     poll_manager.add_source(Box::new(TrackColorPollSource::new(reaper.clone())));
-    // poll_manager.add_source(Box::new(TrackColorPollSource::new(reaper.clone())));
     //  TODO: add various polling sources here
     let mut arpad = ArpadSurface {
         sock,
